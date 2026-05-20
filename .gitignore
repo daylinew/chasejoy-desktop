@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+release/
+*.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal

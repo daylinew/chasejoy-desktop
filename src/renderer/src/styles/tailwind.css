@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .input {
+    @apply w-full rounded border border-cj-border bg-cj-panel2 px-3 py-2 text-sm text-slate-100 placeholder:text-cj-dim focus:border-cj-accent focus:outline-none focus:ring-2 focus:ring-cj-accent/30;
+  }
+  .btn-primary {
+    @apply rounded bg-cj-accent px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-cj-accent2 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply rounded border border-cj-border px-3 py-1.5 text-sm hover:bg-cj-panel2;
+  }
+  .chip {
+    @apply rounded-full border border-cj-border bg-cj-panel2 px-2 py-0.5 text-[11px] text-cj-dim;
+  }
+  .cj-markdown p {
+    @apply my-1.5;
+  }
+  .cj-markdown ul {
+    @apply my-1.5 ml-5 list-disc;
+  }
+  .cj-markdown ol {
+    @apply my-1.5 ml-5 list-decimal;
+  }
+  .cj-markdown li {
+    @apply my-0.5;
+  }
+  .cj-markdown h1 {
+    @apply mb-2 mt-4 text-lg font-semibold;
+  }
+  .cj-markdown h2 {
+    @apply mb-1.5 mt-3 text-base font-semibold;
+  }
+  .cj-markdown h3 {
+    @apply mb-1 mt-2 text-sm font-semibold;
+  }
+  .cj-markdown pre {
+    @apply my-2 overflow-x-auto rounded border border-cj-border bg-cj-bg p-3 text-xs;
+  }
+  .cj-markdown code {
+    @apply rounded bg-cj-bg px-1 py-0.5 font-mono text-[12px];
+  }
+  .cj-markdown pre code {
+    @apply bg-transparent p-0;
+  }
+  .cj-markdown a {
+    @apply text-cj-accent underline-offset-2 hover:underline;
+  }
+  .cj-markdown blockquote {
+    @apply my-2 border-l-2 border-cj-border pl-3 text-cj-dim;
+  }
+  .cj-markdown table {
+    @apply my-2 border-collapse;
+  }
+  .cj-markdown th, .cj-markdown td {
+    @apply border border-cj-border px-2 py-1 text-xs;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}

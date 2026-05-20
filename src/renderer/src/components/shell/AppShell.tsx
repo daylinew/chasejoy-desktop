@@ -1,0 +1,41 @@
+import { useAppStore } from "@renderer/stores/appStore";
+
+import { AgentSidebar } from "../agent/AgentSidebar";
+import { ProjectNavBar } from "../project/ProjectNavBar";
+import { ChatView } from "../chat/ChatView";
+import { ContextPanel } from "../context/ContextPanel";
+import { NewAgentWizard } from "../agent/NewAgentWizard";
+import { SettingsView } from "../settings/SettingsView";
+import { GoalEditor } from "../project/GoalEditor";
+import { ApprovalModal } from "../chat/ApprovalModal";
+
+export function AppShell() {
+  const settingsOpen = useAppStore((s) => s.settingsOpen);
+  const newAgentOpen = useAppStore((s) => s.newAgentOpen);
+  const goalEditorOpen = useAppStore((s) => s.goalEditorOpen);
+  const pendingApproval = useAppStore((s) => s.pendingApproval);
+
+  return (
+    <div className="flex h-full w-full text-slate-100">
+      <aside className="w-64 shrink-0 border-r border-cj-border bg-cj-panel">
+        <AgentSidebar />
+      </aside>
+
+      <main className="flex flex-1 min-w-0 flex-col">
+        <ProjectNavBar />
+        <div className="flex-1 min-h-0">
+          <ChatView />
+        </div>
+      </main>
+
+      <aside className="w-80 shrink-0 border-l border-cj-border bg-cj-panel">
+        <ContextPanel />
+      </aside>
+
+      {settingsOpen ? <SettingsView /> : null}
+      {newAgentOpen ? <NewAgentWizard /> : null}
+      {goalEditorOpen ? <GoalEditor /> : null}
+      {pendingApproval ? <ApprovalModal /> : null}
+    </div>
+  );
+}

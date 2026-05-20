@@ -16,8 +16,8 @@ export function AppShell() {
   const pendingApproval = useAppStore((s) => s.pendingApproval);
 
   return (
-    <div className="flex h-full w-full text-slate-100">
-      <aside className="w-64 shrink-0 border-r border-cj-border bg-cj-panel">
+    <div className="flex h-full w-full bg-cj-bg text-slate-900">
+      <aside className="w-72 shrink-0 border-r border-cj-border bg-white">
         <AgentSidebar />
       </aside>
 
@@ -28,7 +28,7 @@ export function AppShell() {
         </div>
       </main>
 
-      <aside className="w-80 shrink-0 border-l border-cj-border bg-cj-panel">
+      <aside className="w-[360px] shrink-0 border-l border-cj-border bg-white">
         <ContextPanel />
       </aside>
 

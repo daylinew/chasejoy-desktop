@@ -6,16 +6,16 @@ export default {
     extend: {
       colors: {
         cj: {
-          bg: "#0f1115",
-          panel: "#161922",
-          panel2: "#1c2030",
-          border: "#262b3b",
-          accent: "#7c9cff",
-          accent2: "#a78bfa",
-          ok: "#34d399",
-          warn: "#fbbf24",
-          err: "#f87171",
-          dim: "#8a93a6",
+          bg: "#f6f8fb",
+          panel: "#ffffff",
+          panel2: "#f1f5f9",
+          border: "#dbe4ee",
+          accent: "#2563eb",
+          accent2: "#0f766e",
+          ok: "#059669",
+          warn: "#d97706",
+          err: "#dc2626",
+          dim: "#64748b",
         },
       },
       fontFamily: {
@@ -23,7 +23,7 @@ export default {
         mono: ["JetBrains Mono", "Fira Code", "Consolas", "monospace"],
       },
       boxShadow: {
-        panel: "0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 12px rgba(0,0,0,0.35)",
+        panel: "0 1px 2px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.06)",
       },
     },
   },

@@ -5,47 +5,51 @@ export function TodoPanel() {
   const toolEvents = useAppStore((s) => s.toolEvents);
 
   return (
-    <div className="p-3">
-      <div className="mb-2 text-xs uppercase tracking-wider text-cj-dim">DeepAgent todos</div>
+    <div className="space-y-5 p-4">
+      <section>
+      <div className="mb-2 section-label">Task plan</div>
       {todos.length === 0 ? (
-        <div className="rounded border border-dashed border-cj-border px-3 py-4 text-xs text-cj-dim">
-          The agent hasn't created any planning todos yet. They appear here once it calls <code className="text-cj-accent">write_todos</code>.
+        <div className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-4 text-sm text-cj-dim">
+          Agent todos appear here when the plan starts streaming.
         </div>
       ) : (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {todos.map((t, i) => (
-            <li key={i} className="flex items-start gap-2 rounded border border-cj-border bg-cj-panel2 px-2 py-1.5 text-sm">
+            <li key={i} className="flex items-start gap-2 rounded-lg border border-cj-border bg-white px-3 py-2 text-sm shadow-sm">
               <span className={statusDot(t.status)} />
-              <span className={t.status === "completed" ? "line-through text-cj-dim" : ""}>{t.content}</span>
+              <span className={t.status === "completed" ? "line-through text-cj-dim" : "text-slate-800"}>{t.content}</span>
             </li>
           ))}
         </ul>
       )}
+      </section>
 
-      <div className="mt-5 mb-2 text-xs uppercase tracking-wider text-cj-dim">Recent tool activity</div>
+      <section>
+      <div className="mb-2 section-label">Tool activity</div>
       {toolEvents.length === 0 ? (
-        <div className="rounded border border-dashed border-cj-border px-3 py-4 text-xs text-cj-dim">
+        <div className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-4 text-sm text-cj-dim">
           No tool calls yet.
         </div>
       ) : (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {toolEvents.slice(-15).reverse().map((e) => (
-            <li key={e.id} className="rounded border border-cj-border bg-cj-panel2 px-2 py-1.5 text-xs">
+            <li key={e.id} className="rounded-lg border border-cj-border bg-white px-3 py-2 text-xs shadow-sm">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-cj-accent">{e.toolName}</span>
+                <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-cj-accent">{e.toolName}</span>
               </div>
               <div className="mt-0.5 truncate font-mono text-[11px] text-cj-dim" title={e.argsJson}>
                 {e.argsJson}
               </div>
               {e.resultPreview ? (
-                <div className="mt-1 truncate text-[11px] text-slate-300" title={e.resultPreview}>
-                  → {e.resultPreview}
+                <div className="mt-1 truncate text-[11px] text-slate-600" title={e.resultPreview}>
+                  {e.resultPreview}
                 </div>
               ) : null}
             </li>
           ))}
         </ul>
       )}
+      </section>
     </div>
   );
 }

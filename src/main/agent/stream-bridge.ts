@@ -6,9 +6,10 @@ import {
   ToolMessage,
 } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createGraphRunStream } from "@langchain/langgraph";
 import { nanoid } from "nanoid";
 
-import type { AgentRow, MessageRow, StreamEvent } from "@shared/domain.js";
+import type { AgentRow, MessageRow, StreamEvent, SubagentStreamInterface } from "@shared/domain.js";
 import { AgentRegistry } from "./agent-registry.js";
 import { MessageRepository } from "../db/repositories/messages.js";
 import { ThreadRepository } from "../db/repositories/threads.js";
@@ -86,33 +87,148 @@ export class StreamBridge {
     let assistantBuffer = "";
     const assistantMessageId = nanoid(14);
 
+    const subagentsList: SubagentStreamInterface[] = [];
+
     try {
-      const stream = await (bundle.agent as unknown as {
+      const rawStream = await (bundle.agent as unknown as {
         stream: (
           input: { messages: BaseMessage[] },
           opts: {
-            streamMode: ["values", "updates"];
+            subgraphs: boolean;
+            streamMode: string[];
             signal: AbortSignal;
             configurable: { thread_id: string };
             metadata: { assistantId: string };
           },
-        ) => AsyncIterable<[mode: string, chunk: unknown]>;
+        ) => any;
       }).stream(
         { messages },
         {
           ...checkpointConfig,
-          streamMode: ["values", "updates"],
+          subgraphs: true,
+          streamMode: ["values", "updates", "messages", "tools"],
           signal: ctx.abortController.signal,
         },
       );
 
-      for await (const [mode, chunk] of stream) {
-        if (mode === "updates") {
-          this.handleUpdates(ctx, chunk as Record<string, unknown>, assistantMessageId, (text) => {
-            assistantBuffer += text;
+      const run = createGraphRunStream(
+        rawStream as any,
+        (bundle.agent.graph as any).streamTransformers,
+        { abortController: ctx.abortController }
+      );
+
+      const eventLoop = async () => {
+        for await (const event of run) {
+          if (event.method === "updates" && event.params?.namespace?.length === 0) {
+            const node = event.params.node;
+            const values = (event.params as any)?.data?.values;
+            if (node && values) {
+              this.handleUpdates(
+                ctx,
+                { [node]: values },
+                assistantMessageId,
+                (text) => {
+                  assistantBuffer += text;
+                }
+              );
+            }
+          }
+        }
+      };
+
+      const subagentsLoop = async () => {
+        for await (const subagent of (run as any).subagents) {
+          const subagentId = subagent.id;
+          const initial: SubagentStreamInterface = {
+            id: subagentId,
+            status: "pending",
+            messages: [],
+            result: undefined,
+            toolCall: {
+              id: subagent.toolCall?.id ?? "",
+              name: subagent.toolCall?.name ?? "",
+              args: {
+                subagent_type: subagent.name,
+                description: "",
+              },
+            },
+            startedAt: undefined,
+            completedAt: undefined,
+          };
+          subagentsList.push(initial);
+
+          const updateAndEmit = (updates: Partial<SubagentStreamInterface>) => {
+            const idx = subagentsList.findIndex((s) => s.id === subagentId);
+            if (idx >= 0) {
+              subagentsList[idx] = { ...subagentsList[idx]!, ...updates };
+              this.emit({
+                type: "subagent_update",
+                agentId: agentRow.id,
+                threadId: thread.id,
+                subagent: subagentsList[idx]!,
+              });
+            }
+          };
+
+          // Emit initial state
+          updateAndEmit({});
+
+          // Handle task input description
+          void subagent.taskInput.then((desc: string) => {
+            const idx = subagentsList.findIndex((s) => s.id === subagentId);
+            const tc = subagentsList[idx]?.toolCall;
+            updateAndEmit({
+              status: "running",
+              startedAt: Date.now(),
+              toolCall: tc
+                ? {
+                    ...tc,
+                    args: { ...tc.args, description: desc },
+                  }
+                : undefined,
+            });
+          }).catch(() => {});
+
+          // Track messages inside the subagent
+          const trackMessages = async () => {
+            for await (const msg of subagent.messages) {
+              const idx = subagentsList.findIndex((s) => s.id === subagentId);
+              if (idx >= 0) {
+                const currentMsgs = subagentsList[idx]!.messages;
+                const plainMsg = {
+                  type: msg.type,
+                  content: msg.content,
+                };
+                updateAndEmit({
+                  messages: [...currentMsgs, plainMsg],
+                });
+              }
+            }
+          };
+          void trackMessages();
+
+          // Handle subagent output / completion
+          void subagent.output.then((out: any) => {
+            const idx = subagentsList.findIndex((s) => s.id === subagentId);
+            if (idx >= 0) {
+              const finalMsg = out?.messages?.filter((m: any) => m && (m._llmType || m.content))?.at(-1);
+              const resultText = finalMsg ? (typeof finalMsg.content === "string" ? finalMsg.content : "") : "";
+              updateAndEmit({
+                status: "complete",
+                result: resultText || out?.result || "",
+                completedAt: Date.now(),
+              });
+            }
+          }).catch((err: Error) => {
+            updateAndEmit({
+              status: "error",
+              completedAt: Date.now(),
+            });
           });
         }
-      }
+      };
+
+      await Promise.all([eventLoop(), subagentsLoop()]);
     } catch (err) {
       const e = err as Error;
       this.emit({
@@ -126,7 +242,7 @@ export class StreamBridge {
     }
 
     if (assistantBuffer.length > 0) {
-      const final = this.messageRepo.append(thread.id, "assistant", assistantBuffer);
+      const final = this.messageRepo.append(thread.id, "assistant", assistantBuffer, null, subagentsList);
       this.emit({
         type: "message_complete",
         agentId: agentRow.id,
@@ -134,6 +250,7 @@ export class StreamBridge {
         messageId: final.id,
         role: "assistant",
         content: assistantBuffer,
+        subagents: subagentsList,
       });
     }
 

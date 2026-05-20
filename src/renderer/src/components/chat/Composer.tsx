@@ -16,7 +16,7 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl items-end gap-2">
+    <div className="mx-auto flex max-w-4xl items-end gap-3 rounded-2xl border border-cj-border bg-white p-2 shadow-panel">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -29,14 +29,14 @@ export function Composer({ disabled }: { disabled?: boolean }) {
         placeholder={disabled ? "Select an agent first…" : "Message the agent… (Enter to send, Shift+Enter for newline)"}
         rows={3}
         disabled={disabled || busy}
-        className="input flex-1 resize-none"
+        className="min-h-[72px] flex-1 resize-none rounded-xl border-0 bg-transparent px-3 py-2 text-sm text-slate-800 placeholder:text-cj-dim focus:outline-none focus:ring-0"
       />
       {busy ? (
-        <button onClick={() => void cancelStream()} className="btn-ghost h-[42px]">
+        <button onClick={() => void cancelStream()} className="btn-ghost h-10">
           Stop
         </button>
       ) : (
-        <button onClick={() => void submit()} disabled={!text.trim()} className="btn-primary h-[42px]">
+        <button onClick={() => void submit()} disabled={!text.trim()} className="btn-primary h-10">
           Send
         </button>
       )}

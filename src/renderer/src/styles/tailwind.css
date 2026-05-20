@@ -4,16 +4,22 @@
 
 @layer components {
   .input {
-    @apply w-full rounded border border-cj-border bg-cj-panel2 px-3 py-2 text-sm text-slate-100 placeholder:text-cj-dim focus:border-cj-accent focus:outline-none focus:ring-2 focus:ring-cj-accent/30;
+    @apply w-full rounded-md border border-cj-border bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-cj-dim shadow-sm focus:border-cj-accent focus:outline-none focus:ring-2 focus:ring-cj-accent/15;
   }
   .btn-primary {
-    @apply rounded bg-cj-accent px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-cj-accent2 disabled:opacity-50;
+    @apply rounded-md bg-cj-accent px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50;
   }
   .btn-ghost {
-    @apply rounded border border-cj-border px-3 py-1.5 text-sm hover:bg-cj-panel2;
+    @apply rounded-md border border-cj-border bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm hover:bg-cj-panel2 disabled:opacity-50;
   }
   .chip {
-    @apply rounded-full border border-cj-border bg-cj-panel2 px-2 py-0.5 text-[11px] text-cj-dim;
+    @apply rounded-full border border-cj-border bg-cj-panel2 px-2 py-0.5 text-[11px] font-medium text-cj-dim;
+  }
+  .panel {
+    @apply border border-cj-border bg-cj-panel shadow-panel;
+  }
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-cj-dim;
   }
   .cj-markdown p {
     @apply my-1.5;
@@ -37,10 +43,10 @@
     @apply mb-1 mt-2 text-sm font-semibold;
   }
   .cj-markdown pre {
-    @apply my-2 overflow-x-auto rounded border border-cj-border bg-cj-bg p-3 text-xs;
+    @apply my-2 overflow-x-auto rounded-md border border-cj-border bg-slate-950 p-3 text-xs text-slate-100;
   }
   .cj-markdown code {
-    @apply rounded bg-cj-bg px-1 py-0.5 font-mono text-[12px];
+    @apply rounded bg-cj-panel2 px-1 py-0.5 font-mono text-[12px] text-slate-800;
   }
   .cj-markdown pre code {
     @apply bg-transparent p-0;
@@ -49,7 +55,7 @@
     @apply text-cj-accent underline-offset-2 hover:underline;
   }
   .cj-markdown blockquote {
-    @apply my-2 border-l-2 border-cj-border pl-3 text-cj-dim;
+    @apply my-2 border-l-2 border-cj-border pl-3 text-slate-600;
   }
   .cj-markdown table {
     @apply my-2 border-collapse;
@@ -67,6 +73,8 @@ body,
 
 body {
   overflow: hidden;
+  background: #f6f8fb;
+  color: #0f172a;
 }
 
 ::-webkit-scrollbar {
@@ -75,12 +83,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(100, 116, 139, 0.28);
   border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.16);
+  background-color: rgba(100, 116, 139, 0.45);
 }
 
 ::-webkit-scrollbar-track {

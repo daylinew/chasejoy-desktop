@@ -10,6 +10,7 @@ interface MessageDbRow {
   role: MessageRole;
   content: string;
   tool_calls: string | null;
+  subagents: string | null;
   created_at: number;
 }
 
@@ -20,6 +21,7 @@ function fromRow(r: MessageDbRow): MessageRow {
     role: r.role,
     content: r.content,
     toolCalls: r.tool_calls,
+    subagents: r.subagents,
     createdAt: r.created_at,
   };
 }
@@ -27,20 +29,35 @@ function fromRow(r: MessageDbRow): MessageRow {
 export class MessageRepository {
   constructor(private db: Database.Database = getDb()) {}
 
-  append(threadId: string, role: MessageRole, content: string, toolCalls?: unknown): MessageRow {
+  append(
+    threadId: string,
+    role: MessageRole,
+    content: string,
+    toolCalls?: unknown,
+    subagents?: unknown,
+  ): MessageRow {
     const id = nanoid(14);
     const now = Date.now();
     this.db
       .prepare(
-        "INSERT INTO messages (id, thread_id, role, content, tool_calls, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO messages (id, thread_id, role, content, tool_calls, subagents, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(id, threadId, role, content, toolCalls ? JSON.stringify(toolCalls) : null, now);
+      .run(
+        id,
+        threadId,
+        role,
+        content,
+        toolCalls ? JSON.stringify(toolCalls) : null,
+        subagents ? JSON.stringify(subagents) : null,
+        now,
+      );
     return {
       id,
       threadId,
       role,
       content,
       toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
+      subagents: subagents ? JSON.stringify(subagents) : null,
       createdAt: now,
     };
   }

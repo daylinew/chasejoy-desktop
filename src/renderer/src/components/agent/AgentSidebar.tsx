@@ -13,31 +13,36 @@ export function AgentSidebar() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-cj-border px-3 py-3">
-        <div className="text-sm font-semibold tracking-wide text-slate-100">ChaseJoy</div>
+      <div className="border-b border-cj-border px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-base font-semibold tracking-tight text-slate-950">ChaseJoy</div>
+            <div className="mt-0.5 text-xs text-cj-dim">Base Agent workbench</div>
+          </div>
         <button
           onClick={() => setSettingsOpen(true)}
-          className="rounded px-2 py-1 text-xs text-cj-dim hover:bg-cj-panel2 hover:text-slate-100"
+            className="rounded-md border border-cj-border bg-white px-2.5 py-1 text-xs text-slate-600 shadow-sm hover:bg-cj-panel2"
           title="Settings"
         >
           Settings
         </button>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between px-3 py-2 text-xs uppercase tracking-wider text-cj-dim">
-        <span>Agents</span>
+      <div className="flex items-center justify-between px-4 py-3">
+        <span className="section-label">Agents</span>
         <button
           onClick={() => setNewAgentOpen(true)}
-          className="rounded bg-cj-accent/20 px-2 py-0.5 text-cj-accent hover:bg-cj-accent/30"
+          className="rounded-md bg-cj-accent px-2.5 py-1 text-xs font-medium text-white shadow-sm hover:bg-blue-700"
         >
-          + New
+          New
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-1">
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
         {agents.length === 0 ? (
-          <div className="px-3 py-4 text-xs text-cj-dim">
-            No agents yet. Click <span className="font-semibold">+ New</span> to create one.
+          <div className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-4 text-sm text-cj-dim">
+            No agents yet. Create a base agent to start building your workspace.
           </div>
         ) : (
           agents.map((a) => {
@@ -47,23 +52,23 @@ export function AgentSidebar() {
               <div key={a.id} className="mb-1">
                 <button
                   onClick={() => void selectAgent(a.id)}
-                  className={`group flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm ${
-                    isActive ? "bg-cj-accent/15 text-slate-100" : "text-slate-200 hover:bg-cj-panel2"
+                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                    isActive ? "bg-blue-50 text-cj-accent ring-1 ring-blue-100" : "text-slate-700 hover:bg-cj-panel2"
                   }`}
                   title={a.role ?? ""}
                 >
-                  <span className="truncate">
-                    <span className={`mr-2 inline-block h-2 w-2 rounded-full ${isActive ? "bg-cj-accent" : "bg-cj-dim/60"}`} />
-                    {a.name}
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{a.name}</span>
+                    <span className="block truncate text-xs text-cj-dim">{a.role || "Base agent"}</span>
                   </span>
                 </button>
                 {isActive ? (
-                  <div className="ml-3 mt-1 border-l border-cj-border pl-2">
-                    <div className="flex items-center justify-between pr-1 text-[10px] uppercase tracking-wider text-cj-dim">
+                  <div className="ml-3 mt-2 border-l border-cj-border pl-3">
+                    <div className="mb-1 flex items-center justify-between pr-1 section-label">
                       <span>Threads</span>
                       <button
                         onClick={() => void createThread()}
-                        className="rounded px-1.5 py-0.5 text-cj-accent hover:bg-cj-accent/10"
+                        className="rounded px-1.5 py-0.5 text-cj-accent hover:bg-blue-50"
                       >
                         +
                       </button>
@@ -75,10 +80,10 @@ export function AgentSidebar() {
                         <button
                           key={t.id}
                           onClick={() => void selectThread(t.id)}
-                          className={`block w-full truncate rounded px-2 py-1 text-left text-xs ${
+                          className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${
                             t.id === activeThreadId
-                              ? "bg-cj-panel2 text-slate-100"
-                              : "text-slate-300 hover:bg-cj-panel2"
+                              ? "bg-cj-panel2 text-slate-900"
+                              : "text-slate-600 hover:bg-cj-panel2"
                           }`}
                         >
                           {t.title || "Untitled"}

@@ -15,7 +15,7 @@ export function ProjectNavBar() {
 
   if (!agent) {
     return (
-      <div className="flex items-center border-b border-cj-border bg-cj-panel px-4 py-2 text-xs text-cj-dim">
+      <div className="flex items-center border-b border-cj-border bg-white px-5 py-3 text-sm text-cj-dim">
         Select or create an agent to begin.
       </div>
     );
@@ -27,14 +27,14 @@ export function ProjectNavBar() {
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
   return (
-    <div className="flex items-center gap-4 border-b border-cj-border bg-cj-panel px-4 py-2.5">
+    <div className="flex items-center gap-5 border-b border-cj-border bg-white px-5 py-3">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-100">{agent.name}</span>
+          <span className="text-base font-semibold tracking-tight text-slate-950">{agent.name}</span>
           {agent.role ? <span className="chip">{agent.role}</span> : null}
         </div>
-        <div className="truncate text-xs text-cj-dim" title={agent.goalPrompt}>
-          Goal: {summarize(agent.goalPrompt, 110)}
+        <div className="mt-0.5 truncate text-sm text-cj-dim" title={agent.goalPrompt}>
+          {summarize(agent.goalPrompt, 110)}
         </div>
       </div>
 
@@ -42,14 +42,14 @@ export function ProjectNavBar() {
         <div className="flex-1">
           <div className="flex items-baseline justify-between text-xs text-cj-dim">
             <span>
-              Milestones: <span className="text-slate-200">{done}/{total}</span>
-              {active ? <span className="ml-2 text-cj-accent">· active: {active.title}</span> : null}
+              Milestones <span className="font-medium text-slate-800">{done}/{total}</span>
+              {active ? <span className="ml-2 text-cj-accent">active: {active.title}</span> : null}
             </span>
             <span>{pct}%</span>
           </div>
-          <div className="mt-1 h-1.5 w-full rounded bg-cj-panel2">
+          <div className="mt-1.5 h-2 w-full rounded-full bg-cj-panel2">
             <div
-              className="h-1.5 rounded bg-cj-accent transition-all"
+              className="h-2 rounded-full bg-cj-accent transition-all"
               style={{ width: `${pct}%` }}
             />
           </div>

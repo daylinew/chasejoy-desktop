@@ -92,6 +92,8 @@ export interface MessageRow {
   content: string;
   /** JSON-encoded array of tool call descriptors. */
   toolCalls?: string | null;
+  /** JSON-encoded array of subagent state snapshots. */
+  subagents?: string | null;
   createdAt: number;
 }
 
@@ -140,6 +142,24 @@ export interface AppMeta {
   alignmentSelfCheckEveryN: number;
 }
 
+export interface SubagentStreamInterface {
+  id: string;
+  status: "pending" | "running" | "complete" | "error";
+  messages: any[];
+  result?: string;
+  toolCall?: {
+    id: string;
+    name: string;
+    args: {
+      description?: string;
+      subagent_type?: string;
+      [key: string]: unknown;
+    };
+  };
+  startedAt?: number;
+  completedAt?: number;
+}
+
 export interface StreamEventBase {
   threadId: string;
   agentId: string;
@@ -147,7 +167,7 @@ export interface StreamEventBase {
 
 export type StreamEvent =
   | (StreamEventBase & { type: "message_delta"; messageId: string; role: MessageRole; deltaContent: string })
-  | (StreamEventBase & { type: "message_complete"; messageId: string; role: MessageRole; content: string; toolCalls?: unknown })
+  | (StreamEventBase & { type: "message_complete"; messageId: string; role: MessageRole; content: string; toolCalls?: unknown; subagents?: unknown })
   | (StreamEventBase & { type: "tool_call"; toolName: string; argsJson: string; toolCallId: string })
   | (StreamEventBase & { type: "tool_result"; toolCallId: string; resultPreview: string })
   | (StreamEventBase & { type: "todos"; todos: { content: string; status: "pending" | "in_progress" | "completed" }[] })
@@ -155,5 +175,6 @@ export type StreamEvent =
   | (StreamEventBase & { type: "alignment"; score: AlignmentScore; reasoning: string })
   | (StreamEventBase & { type: "milestone_update"; milestone: MilestoneRow })
   | (StreamEventBase & { type: "approval_request"; request: ApprovalRequest })
+  | (StreamEventBase & { type: "subagent_update"; subagent: SubagentStreamInterface })
   | (StreamEventBase & { type: "error"; message: string })
   | (StreamEventBase & { type: "done" });

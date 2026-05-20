@@ -76,7 +76,8 @@ const run = createGraphRunStream(
 
 const eventLoop = async () => {
   for await (const event of run) {
-    // console.log(`Event: ${event.method}, ns: ${JSON.stringify(event.params?.namespace)}`);
+    console.log(`Event Method: ${event.method}`);
+    console.log("Event Params:", JSON.stringify(event.params, null, 2));
   }
 };
 

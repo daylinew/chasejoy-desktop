@@ -9,6 +9,7 @@ import type {
   Provider,
   ThreadRow,
   StreamEvent,
+  SubagentStreamInterface,
 } from "@shared/domain.js";
 
 type TodoItem = { content: string; status: "pending" | "in_progress" | "completed" };
@@ -18,6 +19,7 @@ interface AssistantBubble {
   content: string;
   /** True while the assistant is still streaming into this bubble. */
   streaming: boolean;
+  subagents?: SubagentStreamInterface[];
 }
 
 export interface AppState {
@@ -268,12 +270,31 @@ export const useAppStore = create<AppState>((set, get) => ({
           threadId: evt.threadId,
           role: evt.role,
           content: evt.content,
+          subagents: evt.subagents ? JSON.stringify(evt.subagents) : null,
           createdAt: Date.now(),
         };
         set({
           messages: [...get().messages, newMessage],
           streamingBubble: bubble ? { ...bubble, streaming: false } : null,
         });
+        break;
+      }
+      case "subagent_update": {
+        const bubble = get().streamingBubble;
+        if (bubble) {
+          const subagents = bubble.subagents || [];
+          const idx = subagents.findIndex((s) => s.id === evt.subagent.id);
+          const next =
+            idx >= 0
+              ? subagents.map((s, i) => (i === idx ? evt.subagent : s))
+              : [...subagents, evt.subagent];
+          set({
+            streamingBubble: {
+              ...bubble,
+              subagents: next,
+            },
+          });
+        }
         break;
       }
       case "tool_call": {

@@ -108,4 +108,11 @@ DROP TABLE IF EXISTS memories;
 `,
 };
 
-export const migrations: Migration[] = [m0001, m0002, m0003];
+const m0004: Migration = {
+  name: "0004_add_message_subagents",
+  sql: `
+ALTER TABLE messages ADD COLUMN subagents TEXT;
+`,
+};
+
+export const migrations: Migration[] = [m0001, m0002, m0003, m0004];

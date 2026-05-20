@@ -14,7 +14,6 @@ import { MessageRepository } from "../db/repositories/messages.js";
 import { ThreadRepository } from "../db/repositories/threads.js";
 import { AlignmentRepository } from "../db/repositories/alignment.js";
 import { runSelfCheck } from "./alignment/self-check.js";
-import { MemoryExtractor } from "./memory/memory-extractor.js";
 import { getSettingsStore } from "../stores/settings-store.js";
 
 interface RunContext {
@@ -48,7 +47,6 @@ export class StreamBridge {
   private readonly messageRepo = new MessageRepository();
   private readonly threadRepo = new ThreadRepository();
   private readonly alignmentRepo = new AlignmentRepository();
-  private readonly memoryExtractor = new MemoryExtractor();
 
   constructor(
     private readonly registry: AgentRegistry,
@@ -78,7 +76,12 @@ export class StreamBridge {
     };
     this.active.set(thread.id, ctx);
 
-    const messages = this.loadMessages(thread.id);
+    const checkpointConfig = {
+      configurable: { thread_id: thread.id },
+      metadata: { assistantId: agentRow.id },
+    };
+    const hasCheckpoint = await bundle.checkpointer.getTuple(checkpointConfig).then(Boolean);
+    const messages = hasCheckpoint ? [new HumanMessage(input.content)] : this.loadMessages(thread.id);
 
     let assistantBuffer = "";
     const assistantMessageId = nanoid(14);
@@ -87,11 +90,20 @@ export class StreamBridge {
       const stream = await (bundle.agent as unknown as {
         stream: (
           input: { messages: BaseMessage[] },
-          opts: { streamMode: ["values", "updates"]; signal: AbortSignal },
+          opts: {
+            streamMode: ["values", "updates"];
+            signal: AbortSignal;
+            configurable: { thread_id: string };
+            metadata: { assistantId: string };
+          },
         ) => AsyncIterable<[mode: string, chunk: unknown]>;
       }).stream(
         { messages },
-        { streamMode: ["values", "updates"], signal: ctx.abortController.signal },
+        {
+          ...checkpointConfig,
+          streamMode: ["values", "updates"],
+          signal: ctx.abortController.signal,
+        },
       );
 
       for await (const [mode, chunk] of stream) {
@@ -280,19 +292,12 @@ export class StreamBridge {
       }
     }
 
-    const total = this.messageRepo.countByThread(ctx.threadId);
-    if (total > 0 && total % settings.memoryExtractEveryN === 0) {
-      try {
-        await this.memoryExtractor.extract({
-          agent: ctx.agent,
-          threadId: ctx.threadId,
-          model: evaluatorModel,
-          windowSize: settings.memoryExtractEveryN + 4,
-        });
-      } catch (err) {
-        console.warn("[StreamBridge] memory extraction failed:", err);
-      }
-    }
+    /*
+     * Long-term memory is handled by DeepAgents' native filesystem-backed
+     * memory at /memories/AGENTS.md. We keep post-turn jobs focused on
+     * product-specific alignment scoring instead of running a parallel
+     * extractor that would compete with the SDK memory path.
+     */
   }
 }
 

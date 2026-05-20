@@ -27,13 +27,6 @@ const api: ApiSurface = {
   chatStream: (input) => rpc(Channels.chatStream, input),
   chatCancel: (threadId) => rpc(Channels.chatCancel, threadId),
 
-  /* Memory */
-  memorySearch: (input) => rpc(Channels.memorySearch, input),
-  memoryListRecent: (input) => rpc(Channels.memoryListRecent, input),
-  memorySave: (input) => rpc(Channels.memorySave, input),
-  memoryPin: (id, pinned) => rpc(Channels.memoryPin, id, pinned),
-  memoryForget: (id) => rpc(Channels.memoryForget, id),
-
   /* Milestones */
   milestoneList: (agentId) => rpc(Channels.milestoneList, agentId),
   milestoneCreate: (input) => rpc(Channels.milestoneCreate, input),

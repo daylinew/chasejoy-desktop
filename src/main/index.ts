@@ -5,6 +5,7 @@ import path from "node:path";
 import { registerIpc } from "./ipc.js";
 import { closeDb, getDb } from "./db/index.js";
 import { getSettingsStore } from "./stores/settings-store.js";
+import { closeAgentCheckpointer } from "./agent/checkpointer.js";
 import { createLogger, installGlobalCrashHandlers } from "./utils/logger.js";
 
 const log = createLogger("main");
@@ -98,6 +99,7 @@ if (!gotLock) {
       teardownIpc();
       teardownIpc = null;
     }
+    closeAgentCheckpointer();
     closeDb();
   });
 }

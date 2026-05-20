@@ -9,6 +9,7 @@ import type { ApprovalDecision, StreamEvent } from "@shared/domain.js";
 import { AgentRegistry } from "./agent/agent-registry.js";
 import { StreamBridge } from "./agent/stream-bridge.js";
 import { fetchModels } from "./agent/provider-probe.js";
+import { getAgentCheckpointer } from "./agent/checkpointer.js";
 import { getSettingsStore } from "./stores/settings-store.js";
 import { AgentRepository } from "./db/repositories/agents.js";
 import { ThreadRepository } from "./db/repositories/threads.js";
@@ -58,8 +59,11 @@ export function registerIpc(win: BrowserWindow): () => void {
     agentArchive: (id: never) => {
       registry.archive(id as never);
     },
-    agentDelete: (id: never) => {
-      registry.delete(id as never);
+    agentDelete: async (id: never) => {
+      const agentId = id as unknown as string;
+      const threads = threadRepo.listByAgent(agentId);
+      registry.delete(agentId);
+      await Promise.all(threads.map((t) => getAgentCheckpointer().deleteThread(t.id)));
     },
 
     /* Threads */
@@ -69,8 +73,10 @@ export function registerIpc(win: BrowserWindow): () => void {
     threadRename: (id: never, title: never) => {
       threadRepo.rename(id as never, title as never);
     },
-    threadDelete: (id: never) => {
-      threadRepo.delete(id as never);
+    threadDelete: async (id: never) => {
+      const threadId = id as unknown as string;
+      threadRepo.delete(threadId);
+      await getAgentCheckpointer().deleteThread(threadId);
     },
     threadMessages: (threadId: never, limit?: never) =>
       messageRepo.listByThread(threadId as never, (limit as unknown as number) ?? 1000),
@@ -91,17 +97,6 @@ export function registerIpc(win: BrowserWindow): () => void {
     },
     chatCancel: (threadId: never) => {
       bridge.cancel(threadId as never);
-    },
-
-    /* Memory */
-    memorySearch: (input: never) => registry.memory.search(input as never),
-    memoryListRecent: (input: never) => registry.memory.listRecent(input as never),
-    memorySave: (input: never) => registry.memory.save(input as never),
-    memoryPin: (id: never, pinned: never) => {
-      registry.memory.pin(id as never, pinned as never);
-    },
-    memoryForget: (id: never) => {
-      registry.memory.forget(id as never);
     },
 
     /* Milestones */
@@ -171,11 +166,6 @@ export function registerIpc(win: BrowserWindow): () => void {
     threadMessages: Channels.threadMessages,
     chatStream: Channels.chatStream,
     chatCancel: Channels.chatCancel,
-    memorySearch: Channels.memorySearch,
-    memoryListRecent: Channels.memoryListRecent,
-    memorySave: Channels.memorySave,
-    memoryPin: Channels.memoryPin,
-    memoryForget: Channels.memoryForget,
     milestoneList: Channels.milestoneList,
     milestoneCreate: Channels.milestoneCreate,
     milestoneUpdate: Channels.milestoneUpdate,

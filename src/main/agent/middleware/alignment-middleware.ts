@@ -2,7 +2,6 @@ import { createMiddleware } from "langchain";
 import type { BaseMessage } from "@langchain/core/messages";
 
 import type { AgentRow } from "@shared/domain.js";
-import type { MemoryService } from "../memory/memory-service.js";
 import { MilestoneRepository } from "../../db/repositories/milestones.js";
 
 /**
@@ -10,16 +9,15 @@ import { MilestoneRepository } from "../../db/repositories/milestones.js";
  *  - On every model call, prepends a fresh "anchor" block to the system prompt:
  *      • the agent's project goal (verbatim)
  *      • the agent's active milestones
- *      • the agent's Top-K pinned/relevant memories
  *
  * This keeps the agent grounded turn-after-turn (anti-drift static injection).
+ * DeepAgents' native memory middleware injects /memories/AGENTS.md separately.
  */
 export function createAlignmentMiddleware(opts: {
   agent: AgentRow;
-  memoryService: MemoryService;
   milestoneRepo?: MilestoneRepository;
 }) {
-  const { agent, memoryService } = opts;
+  const { agent } = opts;
   const milestoneRepo = opts.milestoneRepo ?? new MilestoneRepository();
 
   return createMiddleware({
@@ -30,7 +28,7 @@ export function createAlignmentMiddleware(opts: {
         const milestones = milestoneRepo.listByAgent(agent.id);
         const active = milestones.filter((m) => m.status === "active" || m.status === "todo");
         const done = milestones.filter((m) => m.status === "done");
-        const memories = memoryService.topK(agent.id, latestUserText, 8);
+        void latestUserText;
 
         const anchor = renderAnchor({
           agentName: agent.name,
@@ -38,9 +36,6 @@ export function createAlignmentMiddleware(opts: {
           goalPrompt: agent.goalPrompt,
           activeMilestones: active.map((m) => `- [${m.status}] ${m.title}${m.description ? ` — ${m.description}` : ""}`),
           doneMilestones: done.map((m) => `- [done] ${m.title}`),
-          memories: memories.map(
-            (m) => `- (${m.kind}${m.pinned ? "+pinned" : ""}) ${m.content}`,
-          ),
         });
 
         const baseSystem = typeof request.systemPrompt === "string" ? request.systemPrompt : "";
@@ -79,15 +74,10 @@ function renderAnchor(args: {
   goalPrompt: string;
   activeMilestones: string[];
   doneMilestones: string[];
-  memories: string[];
 }): string {
   const milestonesBlock = args.activeMilestones.length === 0 && args.doneMilestones.length === 0
     ? "_(no milestones defined yet — consider adding them via the `add_milestone` tool)_"
     : [...args.activeMilestones, ...args.doneMilestones.slice(0, 3)].join("\n");
-
-  const memoriesBlock = args.memories.length === 0
-    ? "_(no long-term memory yet — use `save_memory` for facts worth remembering)_"
-    : args.memories.join("\n");
 
   return [
     "# Project anchor (must shape every decision below)",
@@ -100,13 +90,10 @@ function renderAnchor(args: {
     "## Milestones",
     milestonesBlock,
     "",
-    "## High-priority memories",
-    memoriesBlock,
-    "",
     "## Rules",
     "1. Every action must serve the project goal above. If a request seems off-goal, ask the user before pursuing it.",
     "2. Update milestone status with `update_milestone` whenever you complete a checkpoint.",
-    "3. Save durable facts/preferences/decisions/artifacts with `save_memory`. Be selective — only what helps future you.",
+    "3. Maintain durable facts/preferences/decisions/artifacts in `/memories/AGENTS.md` with `read_file` and `edit_file`. Be selective — only what helps future you.",
     "4. Prefer concise, direct answers; expand only when the user asks or the task warrants it.",
   ].join("\n");
 }

@@ -2,13 +2,14 @@ import { createDeepAgent, FilesystemBackend } from "deepagents";
 import type { DeepAgent } from "deepagents";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import fs from "node:fs";
+import path from "node:path";
 
 import type { AgentRow } from "@shared/domain.js";
 import { createChatModel } from "./model-factory.js";
 import { CHASEJOY_BASE_PROMPT } from "./system-prompt.js";
-import { MemoryService } from "./memory/memory-service.js";
 import { createAlignmentMiddleware } from "./middleware/alignment-middleware.js";
 import { ApprovalBroker, createApprovalMiddleware } from "./approval-hook.js";
+import { getAgentCheckpointer } from "./checkpointer.js";
 
 import { makeInternetSearchTool } from "./tools/internet-search.js";
 import { makeClipboardReadTool, makeClipboardWriteTool } from "./tools/clipboard.js";
@@ -21,20 +22,22 @@ import { fileEditorSubagent } from "./subagents/file-editor.js";
 
 import { getSettingsStore } from "../stores/settings-store.js";
 
+const NATIVE_MEMORY_PATH = "/memories/AGENTS.md";
+
 export interface AgentRuntimeBundle {
   agent: DeepAgent;
   model: BaseChatModel;
+  checkpointer: import("@langchain/langgraph-checkpoint-sqlite").SqliteSaver;
   /** Currently active thread (mutable so tools can read it). */
   setActiveThread: (threadId: string | null) => void;
 }
 
 export function buildAgent(opts: {
   row: AgentRow;
-  memoryService: MemoryService;
   approvalBroker: ApprovalBroker;
   emit: (kind: string, payload: unknown) => void;
 }): AgentRuntimeBundle {
-  const { row, memoryService, approvalBroker, emit } = opts;
+  const { row, approvalBroker, emit } = opts;
 
   const settings = getSettingsStore();
   const provider = settings.getProvider(row.providerId, false);
@@ -76,19 +79,16 @@ export function buildAgent(opts: {
     enabled.has("take_screenshot") ? screenshot : null,
     enabled.has("open_app") ? openApp : null,
     enabled.has("open_path") ? openPath : null,
-    enabled.has("save_memory") ? memoryService.saveMemoryToolFor(row.id, threadRef) : null,
-    enabled.has("search_memory") ? memoryService.searchMemoryToolFor(row.id) : null,
-    enabled.has("list_recent_memories") ? memoryService.listRecentMemoriesToolFor(row.id) : null,
-    enabled.has("pin_memory") ? memoryService.pinMemoryTool() : null,
-    enabled.has("forget_memory") ? memoryService.forgetMemoryTool() : null,
     enabled.has("add_milestone") ? milestone.addMilestone : null,
     enabled.has("update_milestone") ? milestone.updateMilestone : null,
     enabled.has("list_milestones") ? milestone.listMilestones : null,
   ].filter((x): x is NonNullable<typeof x> => x !== null);
 
+  ensureNativeMemoryFile(row.workspaceDir);
   const backend = new FilesystemBackend({ rootDir: row.workspaceDir, virtualMode: true });
+  const checkpointer = getAgentCheckpointer();
 
-  const alignment = createAlignmentMiddleware({ agent: row, memoryService });
+  const alignment = createAlignmentMiddleware({ agent: row });
   const approval = createApprovalMiddleware({
     agentId: row.id,
     threadIdRef: threadRef,
@@ -108,13 +108,43 @@ export function buildAgent(opts: {
     tools: tools as never,
     middleware: [alignment, approval] as never,
     subagents: subagents as never,
+    memory: [NATIVE_MEMORY_PATH],
+    checkpointer,
   });
 
   return {
     agent: agent as unknown as DeepAgent,
     model: evaluator,
+    checkpointer,
     setActiveThread: (id) => {
       activeThreadId = id;
     },
   };
+}
+
+function ensureNativeMemoryFile(workspaceDir: string): void {
+  const memoryDir = path.join(workspaceDir, "memories");
+  const memoryFile = path.join(memoryDir, "AGENTS.md");
+  fs.mkdirSync(memoryDir, { recursive: true });
+  if (fs.existsSync(memoryFile)) return;
+
+  const lines = [
+    "# ChaseJoy Agent Memory",
+    "",
+    "This file is persistent long-term memory for this agent. Keep it concise and edit it when durable preferences, decisions, facts, or artifact references should carry into future conversations.",
+    "",
+    "## User Preferences",
+    "- (empty)",
+    "",
+    "## Project Facts",
+    "- (empty)",
+    "",
+    "## Decisions",
+    "- (empty)",
+    "",
+    "## Artifacts",
+    "- (empty)",
+  ];
+
+  fs.writeFileSync(memoryFile, `${lines.join("\n")}\n`, "utf8");
 }

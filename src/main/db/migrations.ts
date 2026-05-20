@@ -67,41 +67,6 @@ CREATE TABLE IF NOT EXISTS milestones (
 );
 CREATE INDEX IF NOT EXISTS idx_milestones_agent ON milestones(agent_id, order_index);
 
-CREATE TABLE IF NOT EXISTS memories (
-    id                 TEXT PRIMARY KEY,
-    agent_id           TEXT REFERENCES agents(id) ON DELETE CASCADE,
-    kind               TEXT NOT NULL,
-    content            TEXT NOT NULL,
-    source_thread_id   TEXT,
-    source_message_id  TEXT,
-    importance         REAL NOT NULL DEFAULT 0.5,
-    pinned             INTEGER NOT NULL DEFAULT 0,
-    cross_agent        INTEGER NOT NULL DEFAULT 0,
-    embedding          BLOB,
-    created_at         INTEGER NOT NULL,
-    last_accessed_at   INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_memories_agent ON memories(agent_id, pinned DESC, importance DESC, last_accessed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_memories_global ON memories(cross_agent, pinned DESC, importance DESC);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
-    content,
-    kind UNINDEXED,
-    memory_id UNINDEXED,
-    tokenize = 'unicode61 remove_diacritics 2'
-);
-
-CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-    INSERT INTO memories_fts (content, kind, memory_id) VALUES (new.content, new.kind, new.id);
-END;
-CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-    DELETE FROM memories_fts WHERE memory_id = old.id;
-END;
-CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE OF content, kind ON memories BEGIN
-    DELETE FROM memories_fts WHERE memory_id = old.id;
-    INSERT INTO memories_fts (content, kind, memory_id) VALUES (new.content, new.kind, new.id);
-END;
-
 CREATE TABLE IF NOT EXISTS alignment_events (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     agent_id     TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
@@ -132,4 +97,15 @@ ALTER TABLE agents ADD COLUMN model TEXT NOT NULL DEFAULT '';
 `,
 };
 
-export const migrations: Migration[] = [m0001, m0002];
+const m0003: Migration = {
+  name: "0003_drop_legacy_sqlite_memories",
+  sql: `
+DROP TRIGGER IF EXISTS memories_ai;
+DROP TRIGGER IF EXISTS memories_ad;
+DROP TRIGGER IF EXISTS memories_au;
+DROP TABLE IF EXISTS memories_fts;
+DROP TABLE IF EXISTS memories;
+`,
+};
+
+export const migrations: Migration[] = [m0001, m0002, m0003];

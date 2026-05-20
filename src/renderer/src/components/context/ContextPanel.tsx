@@ -2,12 +2,10 @@ import { useAppStore } from "@renderer/stores/appStore";
 
 import { TodoPanel } from "./TodoPanel";
 import { FilesPanel } from "./FilesPanel";
-import { MemoryPanel } from "./MemoryPanel";
 
-const TABS: { key: "todos" | "files" | "memory"; label: string }[] = [
+const TABS: { key: "todos" | "files"; label: string }[] = [
   { key: "todos", label: "Todos" },
   { key: "files", label: "Files" },
-  { key: "memory", label: "Memory" },
 ];
 
 export function ContextPanel() {
@@ -32,7 +30,6 @@ export function ContextPanel() {
       <div className="flex-1 overflow-y-auto">
         {tab === "todos" ? <TodoPanel /> : null}
         {tab === "files" ? <FilesPanel /> : null}
-        {tab === "memory" ? <MemoryPanel /> : null}
       </div>
     </div>
   );

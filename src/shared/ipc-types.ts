@@ -14,8 +14,6 @@ import type {
   AppMeta,
   ApprovalDecision,
   ApprovalRequest,
-  MemoryKind,
-  MemoryRow,
   MessageRow,
   MilestoneRow,
   MilestoneStatus,
@@ -43,12 +41,6 @@ export const Channels = {
 
   chatStream: "chat:stream",
   chatCancel: "chat:cancel",
-
-  memorySearch: "memory:search",
-  memoryListRecent: "memory:listRecent",
-  memorySave: "memory:save",
-  memoryPin: "memory:pin",
-  memoryForget: "memory:forget",
 
   milestoneList: "milestone:list",
   milestoneCreate: "milestone:create",
@@ -94,27 +86,6 @@ export interface ApiSurface {
   /* Chat */
   chatStream(input: { threadId: string; content: string }): Promise<{ requestId: string }>;
   chatCancel(threadId: string): Promise<void>;
-
-  /* Memory */
-  memorySearch(input: {
-    agentId: string;
-    query?: string;
-    kinds?: MemoryKind[];
-    limit?: number;
-  }): Promise<MemoryRow[]>;
-  memoryListRecent(input: { agentId: string; limit?: number }): Promise<MemoryRow[]>;
-  memorySave(input: {
-    agentId: string | null;
-    kind: MemoryKind;
-    content: string;
-    importance?: number;
-    pinned?: boolean;
-    crossAgent?: boolean;
-    sourceThreadId?: string | null;
-    sourceMessageId?: string | null;
-  }): Promise<MemoryRow>;
-  memoryPin(id: string, pinned: boolean): Promise<void>;
-  memoryForget(id: string): Promise<void>;
 
   /* Milestones */
   milestoneList(agentId: string): Promise<MilestoneRow[]>;

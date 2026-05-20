@@ -56,15 +56,6 @@ export function SettingsView() {
                   onChange={(e) => void saveMeta({ alignmentSelfCheckEveryN: parseInt(e.target.value || "4", 10) })}
                 />
               </Field>
-              <Field label="Memory extractor every N messages">
-                <input
-                  type="number"
-                  min={2}
-                  className="input"
-                  value={meta.memoryExtractEveryN}
-                  onChange={(e) => void saveMeta({ memoryExtractEveryN: parseInt(e.target.value || "12", 10) })}
-                />
-              </Field>
               <Field label="Workspace root">
                 <input className="input" value={meta.workspaceRoot} readOnly />
               </Field>

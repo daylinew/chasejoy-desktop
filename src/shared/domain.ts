@@ -30,11 +30,6 @@ export type ToolKey =
   | "take_screenshot"
   | "open_app"
   | "open_path"
-  | "save_memory"
-  | "search_memory"
-  | "list_recent_memories"
-  | "pin_memory"
-  | "forget_memory"
   | "add_milestone"
   | "update_milestone"
   | "list_milestones"
@@ -114,23 +109,6 @@ export interface MilestoneRow {
   updatedAt: number;
 }
 
-export type MemoryKind = "fact" | "preference" | "decision" | "artifact" | "milestone_progress";
-
-export interface MemoryRow {
-  id: string;
-  /** null = global (shared across agents) */
-  agentId: string | null;
-  kind: MemoryKind;
-  content: string;
-  sourceThreadId: string | null;
-  sourceMessageId: string | null;
-  importance: number;
-  pinned: boolean;
-  crossAgent: boolean;
-  createdAt: number;
-  lastAccessedAt: number;
-}
-
 export type AlignmentScore = "green" | "yellow" | "red";
 
 export interface AlignmentEvent {
@@ -160,8 +138,6 @@ export interface AppMeta {
   /** Globally trusted paths the agent may always read/write. */
   globalAllowedPaths: string[];
   alignmentSelfCheckEveryN: number;
-  /** Auto-extract memories after N user/assistant messages. */
-  memoryExtractEveryN: number;
 }
 
 export interface StreamEventBase {

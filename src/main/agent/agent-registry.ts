@@ -11,7 +11,6 @@ import type {
 } from "@shared/domain.js";
 import { AgentRepository } from "../db/repositories/agents.js";
 import { ThreadRepository } from "../db/repositories/threads.js";
-import { MemoryService } from "./memory/memory-service.js";
 import { ApprovalBroker } from "./approval-hook.js";
 import { buildAgent, type AgentRuntimeBundle } from "./agent-factory.js";
 
@@ -22,11 +21,6 @@ export const DEFAULT_ENABLED_TOOLS: ToolKey[] = [
   "take_screenshot",
   "open_app",
   "open_path",
-  "save_memory",
-  "search_memory",
-  "list_recent_memories",
-  "pin_memory",
-  "forget_memory",
   "add_milestone",
   "update_milestone",
   "list_milestones",
@@ -44,7 +38,6 @@ export const DEFAULT_BUILTIN_TOOLS: BuiltinToolKey[] = [
 
 export class AgentRegistry {
   private readonly cache = new Map<string, AgentRuntimeBundle>();
-  private readonly memoryService: MemoryService;
   private readonly approvalBroker: ApprovalBroker;
 
   constructor(
@@ -53,7 +46,6 @@ export class AgentRegistry {
     private readonly agentRepo = new AgentRepository(),
     private readonly threadRepo = new ThreadRepository(),
   ) {
-    this.memoryService = new MemoryService();
     this.approvalBroker = new ApprovalBroker(emitApproval);
   }
 
@@ -107,7 +99,6 @@ export class AgentRegistry {
     const row = this.agentRepo.requireById(agentId);
     bundle = buildAgent({
       row,
-      memoryService: this.memoryService,
       approvalBroker: this.approvalBroker,
       emit: this.emitStream,
     });
@@ -124,10 +115,6 @@ export class AgentRegistry {
   agentForThread(threadId: string): AgentRow {
     const t = this.threadRepo.requireById(threadId);
     return this.agentRepo.requireById(t.agentId);
-  }
-
-  get memory() {
-    return this.memoryService;
   }
 
   get approval() {

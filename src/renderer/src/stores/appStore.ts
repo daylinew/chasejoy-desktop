@@ -4,7 +4,6 @@ import type {
   AgentRow,
   AlignmentEvent,
   ApprovalRequest,
-  MemoryRow,
   MessageRow,
   MilestoneRow,
   Provider,
@@ -49,13 +48,11 @@ export interface AppState {
   todos: TodoItem[];
   files: Record<string, string>;
   toolEvents: { id: string; toolName: string; argsJson: string; resultPreview?: string }[];
-  memories: MemoryRow[];
-
   /* Approval */
   pendingApproval: ApprovalRequest | null;
 
   /* UI */
-  contextTab: "todos" | "files" | "memory";
+  contextTab: "todos" | "files";
   settingsOpen: boolean;
   newAgentOpen: boolean;
   goalEditorOpen: boolean;
@@ -69,7 +66,6 @@ export interface AppState {
   sendMessage: (text: string) => Promise<void>;
   cancelStream: () => Promise<void>;
   refreshMilestones: () => Promise<void>;
-  refreshMemory: (query?: string) => Promise<void>;
   realign: () => Promise<void>;
   respondApproval: (decision: import("@shared/domain.js").ApprovalDecision) => Promise<void>;
   setContextTab: (tab: AppState["contextTab"]) => void;
@@ -99,7 +95,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   todos: [],
   files: {},
   toolEvents: [],
-  memories: [],
   pendingApproval: null,
   contextTab: "todos",
   settingsOpen: false,
@@ -134,18 +129,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   async selectAgent(id) {
     set({ activeAgentId: id, activeThreadId: null, messages: [], streamingBubble: null });
     if (!id) {
-      set({ threads: [], milestones: [], alignment: null, memories: [], todos: [], files: {}, toolEvents: [] });
+      set({ threads: [], milestones: [], alignment: null, todos: [], files: {}, toolEvents: [] });
       return;
     }
     set({ loadingThreads: true });
     try {
-      const [threads, milestones, alignment, memories] = await Promise.all([
+      const [threads, milestones, alignment] = await Promise.all([
         api().threadList(id),
         api().milestoneList(id),
         api().alignmentLatest({ agentId: id }),
-        api().memoryListRecent({ agentId: id, limit: 20 }),
       ]);
-      set({ threads, milestones, alignment, memories, loadingThreads: false, todos: [], files: {}, toolEvents: [] });
+      set({ threads, milestones, alignment, loadingThreads: false, todos: [], files: {}, toolEvents: [] });
       if (threads.length > 0) await get().selectThread(threads[0]!.id);
     } catch (err) {
       console.error(err);
@@ -225,15 +219,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!id) return;
     const milestones = await api().milestoneList(id);
     set({ milestones });
-  },
-
-  async refreshMemory(query) {
-    const id = get().activeAgentId;
-    if (!id) return;
-    const memories = query
-      ? await api().memorySearch({ agentId: id, query, limit: 30 })
-      : await api().memoryListRecent({ agentId: id, limit: 30 });
-    set({ memories });
   },
 
   async realign() {
@@ -342,7 +327,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       case "done":
         set({ composerBusy: false, streamingBubble: null });
-        void get().refreshMemory();
         break;
     }
   },

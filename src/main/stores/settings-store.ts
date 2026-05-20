@@ -34,7 +34,6 @@ const DEFAULTS: PersistedShape = {
     workspaceRoot: "",
     globalAllowedPaths: [],
     alignmentSelfCheckEveryN: 4,
-    memoryExtractEveryN: 12,
   },
   providers: [],
   defaultProviderId: null,

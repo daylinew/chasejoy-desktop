@@ -8,6 +8,7 @@ import type { ApprovalDecision, StreamEvent } from "@shared/domain.js";
 
 import { AgentRegistry } from "./agent/agent-registry.js";
 import { StreamBridge } from "./agent/stream-bridge.js";
+import { fetchModels } from "./agent/provider-probe.js";
 import { getSettingsStore } from "./stores/settings-store.js";
 import { AgentRepository } from "./db/repositories/agents.js";
 import { ThreadRepository } from "./db/repositories/threads.js";
@@ -130,14 +131,15 @@ export function registerIpc(win: BrowserWindow): () => void {
     /* Settings */
     settingsGet: () => settingsStore.getMeta(),
     settingsSetMeta: (patch: never) => settingsStore.setMeta(patch as never),
-    settingsListProfiles: () => settingsStore.listProfiles(false),
-    settingsUpsertProfile: (input: never) => settingsStore.upsertProfile(input as never),
-    settingsRemoveProfile: (id: never) => {
-      settingsStore.removeProfile(id as never);
+    settingsListProviders: () => settingsStore.listProviders(false),
+    settingsUpsertProvider: (input: never) => settingsStore.upsertProvider(input as never),
+    settingsRemoveProvider: (id: never) => {
+      settingsStore.removeProvider(id as never);
     },
-    settingsSetDefaultProfile: (id: never) => {
-      settingsStore.setDefaultProfile(id as never);
+    settingsSetDefaultProvider: (id: never) => {
+      settingsStore.setDefaultProvider(id as never);
     },
+    settingsFetchModels: (draft: never) => fetchModels(draft as never),
     settingsSetTavilyKey: (key: never) => {
       settingsStore.setTavilyKey(key as never);
     },
@@ -173,10 +175,11 @@ export function registerIpc(win: BrowserWindow): () => void {
     approvalRespond: Channels.approvalRespond,
     settingsGet: Channels.settingsGet,
     settingsSetMeta: Channels.settingsSetMeta,
-    settingsListProfiles: Channels.settingsListProfiles,
-    settingsUpsertProfile: Channels.settingsUpsertProfile,
-    settingsRemoveProfile: Channels.settingsRemoveProfile,
-    settingsSetDefaultProfile: Channels.settingsSetDefaultProfile,
+    settingsListProviders: Channels.settingsListProviders,
+    settingsUpsertProvider: Channels.settingsUpsertProvider,
+    settingsRemoveProvider: Channels.settingsRemoveProvider,
+    settingsSetDefaultProvider: Channels.settingsSetDefaultProvider,
+    settingsFetchModels: Channels.settingsFetchModels,
     settingsSetTavilyKey: Channels.settingsSetTavilyKey,
   };
 

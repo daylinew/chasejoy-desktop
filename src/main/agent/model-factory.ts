@@ -2,54 +2,55 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOpenAI } from "@langchain/openai";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { ProviderProfile } from "@shared/domain.js";
+import type { Provider } from "@shared/domain.js";
 
 /**
- * Build a LangChain chat model from a stored provider profile.
+ * Build a LangChain chat model from a stored provider + a chosen model name.
  * The caller is responsible for fetching the decrypted API key from
  * SettingsStore before invoking; we accept it as an explicit field here
  * so the factory itself stays pure.
  */
 export function createChatModel(
-  profile: ProviderProfile,
+  provider: Provider,
   apiKey: string,
+  model: string,
   opts: { streaming?: boolean; temperature?: number } = {},
 ): BaseChatModel {
   const streaming = opts.streaming ?? true;
   const temperature = opts.temperature ?? 0.3;
 
-  switch (profile.kind) {
+  switch (provider.kind) {
     case "openai":
       return new ChatOpenAI({
-        model: profile.model,
+        model,
         apiKey,
         temperature,
         streaming,
-        ...(profile.baseURL ? { configuration: { baseURL: profile.baseURL } } : {}),
+        ...(provider.baseURL ? { configuration: { baseURL: provider.baseURL } } : {}),
       });
 
     case "openai-compat":
-      if (!profile.baseURL) {
-        throw new Error(`Profile ${profile.label} is openai-compat but has no baseURL`);
+      if (!provider.baseURL) {
+        throw new Error(`Provider ${provider.label} is openai-compat but has no baseURL`);
       }
       return new ChatOpenAI({
-        model: profile.model,
+        model,
         apiKey,
         temperature,
         streaming,
-        configuration: { baseURL: profile.baseURL },
+        configuration: { baseURL: provider.baseURL },
       });
 
     case "anthropic":
       return new ChatAnthropic({
-        model: profile.model,
+        model,
         apiKey,
         temperature,
         streaming,
       });
 
     default: {
-      const _exhaustive: never = profile.kind;
+      const _exhaustive: never = provider.kind;
       throw new Error(`Unknown provider kind: ${String(_exhaustive)}`);
     }
   }

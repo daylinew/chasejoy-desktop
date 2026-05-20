@@ -4,18 +4,28 @@ import { nanoid } from "nanoid";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { AppMeta, ProviderProfile, ProviderKind } from "@shared/domain.js";
+import type { AppMeta, Provider, ProviderKind } from "@shared/domain.js";
 
 interface PersistedShape {
   meta: AppMeta;
-  profiles: PersistedProfile[];
-  defaultProfileId: string | null;
+  providers: PersistedProvider[];
+  defaultProviderId: string | null;
   /** Tavily key stored encrypted (base64) when safeStorage is available. */
   tavilyApiKeyEnc: string | null;
 }
 
-interface PersistedProfile extends Omit<ProviderProfile, "apiKey" | "isDefault"> {
+interface PersistedProvider extends Omit<Provider, "apiKey" | "isDefault"> {
   /** Encrypted (base64) when safeStorage is available, else plaintext. */
+  apiKeyEnc: string | null;
+}
+
+/** Pre-split profile shape, kept only to migrate legacy stores. */
+interface LegacyProfile {
+  id: string;
+  label: string;
+  kind: ProviderKind;
+  model: string;
+  baseURL?: string;
   apiKeyEnc: string | null;
 }
 
@@ -26,8 +36,8 @@ const DEFAULTS: PersistedShape = {
     alignmentSelfCheckEveryN: 4,
     memoryExtractEveryN: 12,
   },
-  profiles: [],
-  defaultProfileId: null,
+  providers: [],
+  defaultProviderId: null,
   tavilyApiKeyEnc: null,
 };
 
@@ -39,6 +49,7 @@ function store(): Store<PersistedShape> {
       name: "chasejoy-settings",
       defaults: DEFAULTS,
     });
+    migrateLegacyProfiles(_store);
   }
   return _store;
 }
@@ -75,6 +86,56 @@ function ensureMeta(): AppMeta {
   return cur;
 }
 
+/**
+ * One-time upgrade: collapse pre-split `profiles` (1 provider + 1 model each)
+ * into `providers` (1 provider + N models), grouping by kind+baseURL.
+ * The first profile in each group keeps its id as the provider id, so most
+ * existing `agent.provider_id` references still resolve.
+ */
+function migrateLegacyProfiles(s: Store<PersistedShape>): void {
+  const raw = s as unknown as {
+    has: (k: string) => boolean;
+    get: (k: string) => unknown;
+    delete: (k: string) => void;
+  };
+  if (!raw.has("profiles")) return;
+
+  if (s.get("providers").length === 0) {
+    const legacy = raw.get("profiles") as LegacyProfile[] | undefined;
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      const groups = new Map<string, PersistedProvider>();
+      const profileIdToGroupKey = new Map<string, string>();
+      for (const p of legacy) {
+        const key = `${p.kind}::${p.baseURL ?? ""}`;
+        profileIdToGroupKey.set(p.id, key);
+        const g = groups.get(key);
+        if (g) {
+          if (p.model && !g.models.includes(p.model)) g.models.push(p.model);
+        } else {
+          groups.set(key, {
+            id: p.id,
+            label: p.label,
+            kind: p.kind,
+            baseURL: p.baseURL,
+            models: p.model ? [p.model] : [],
+            apiKeyEnc: p.apiKeyEnc,
+          });
+        }
+      }
+      const providers = [...groups.values()];
+      s.set("providers", providers);
+
+      const legacyDefault = raw.get("defaultProfileId") as string | null | undefined;
+      const groupKey = legacyDefault ? profileIdToGroupKey.get(legacyDefault) : undefined;
+      const mapped = groupKey ? groups.get(groupKey) : undefined;
+      s.set("defaultProviderId", mapped?.id ?? providers[0]?.id ?? null);
+    }
+  }
+
+  raw.delete("profiles");
+  raw.delete("defaultProfileId");
+}
+
 export class SettingsStore {
   /* ---------- App meta ---------- */
   getMeta(): AppMeta {
@@ -88,89 +149,90 @@ export class SettingsStore {
     return merged;
   }
 
-  /* ---------- Provider profiles ---------- */
-  listProfiles(includeKeys = false): ProviderProfile[] {
-    const s = store();
-    const defaultId = s.get("defaultProfileId");
-    return s.get("profiles").map((p) => ({
-      id: p.id,
-      label: p.label,
-      kind: p.kind,
-      model: p.model,
-      baseURL: p.baseURL,
-      apiKey: includeKeys ? decrypt(p.apiKeyEnc) ?? undefined : undefined,
-      isDefault: p.id === defaultId,
-    }));
-  }
-
-  getProfile(id: string, includeKey = true): ProviderProfile | null {
-    const s = store();
-    const p = s.get("profiles").find((x) => x.id === id);
-    if (!p) return null;
+  /* ---------- Providers ---------- */
+  private toProvider(p: PersistedProvider, defaultId: string | null, includeKey: boolean): Provider {
     return {
       id: p.id,
       label: p.label,
       kind: p.kind,
-      model: p.model,
       baseURL: p.baseURL,
+      models: p.models ?? [],
       apiKey: includeKey ? decrypt(p.apiKeyEnc) ?? undefined : undefined,
-      isDefault: p.id === s.get("defaultProfileId"),
+      hasApiKey: !!p.apiKeyEnc,
+      isDefault: p.id === defaultId,
     };
   }
 
-  /** Decrypted API key for the given profile, or null when missing. */
-  getApiKey(profileId: string): string | null {
+  listProviders(includeKeys = false): Provider[] {
     const s = store();
-    const p = s.get("profiles").find((x) => x.id === profileId);
+    const defaultId = s.get("defaultProviderId");
+    return s.get("providers").map((p) => this.toProvider(p, defaultId, includeKeys));
+  }
+
+  getProvider(id: string, includeKey = true): Provider | null {
+    const s = store();
+    const p = s.get("providers").find((x) => x.id === id);
+    if (!p) return null;
+    return this.toProvider(p, s.get("defaultProviderId"), includeKey);
+  }
+
+  /** Decrypted API key for the given provider, or null when missing. */
+  getApiKey(providerId: string): string | null {
+    const s = store();
+    const p = s.get("providers").find((x) => x.id === providerId);
     if (!p) return null;
     return decrypt(p.apiKeyEnc);
   }
 
-  upsertProfile(input: Omit<ProviderProfile, "id" | "isDefault"> & { id?: string }): ProviderProfile {
+  upsertProvider(input: Omit<Provider, "id" | "isDefault" | "hasApiKey"> & { id?: string }): Provider {
     const s = store();
-    const profiles = s.get("profiles").slice();
-    const idx = input.id ? profiles.findIndex((p) => p.id === input.id) : -1;
+    const providers = s.get("providers").slice();
+    const idx = input.id ? providers.findIndex((p) => p.id === input.id) : -1;
 
-    const id = idx >= 0 ? profiles[idx]!.id : input.id ?? nanoid(10);
-    const persisted: PersistedProfile = {
+    const id = idx >= 0 ? providers[idx]!.id : input.id ?? nanoid(10);
+    const persisted: PersistedProvider = {
       id,
       label: input.label,
       kind: input.kind,
-      model: input.model,
       baseURL: input.baseURL,
-      apiKeyEnc: input.apiKey ? encrypt(input.apiKey) : (idx >= 0 ? profiles[idx]!.apiKeyEnc : null),
+      models: input.models ?? [],
+      apiKeyEnc: input.apiKey
+        ? encrypt(input.apiKey)
+        : idx >= 0
+          ? providers[idx]!.apiKeyEnc
+          : null,
     };
 
-    if (idx >= 0) profiles[idx] = persisted;
-    else profiles.push(persisted);
-    s.set("profiles", profiles);
+    if (idx >= 0) providers[idx] = persisted;
+    else providers.push(persisted);
+    s.set("providers", providers);
 
-    if (!s.get("defaultProfileId")) s.set("defaultProfileId", id);
+    if (!s.get("defaultProviderId")) s.set("defaultProviderId", id);
 
-    return this.getProfile(id, false)!;
+    return this.getProvider(id, false)!;
   }
 
-  removeProfile(id: string): void {
+  removeProvider(id: string): void {
     const s = store();
-    s.set("profiles", s.get("profiles").filter((p) => p.id !== id));
-    if (s.get("defaultProfileId") === id) {
-      const rest = s.get("profiles");
-      s.set("defaultProfileId", rest[0]?.id ?? null);
+    s.set("providers", s.get("providers").filter((p) => p.id !== id));
+    if (s.get("defaultProviderId") === id) {
+      const rest = s.get("providers");
+      s.set("defaultProviderId", rest[0]?.id ?? null);
     }
   }
 
-  setDefaultProfile(id: string): void {
+  setDefaultProvider(id: string): void {
     const s = store();
-    if (!s.get("profiles").some((p) => p.id === id)) {
-      throw new Error(`Profile not found: ${id}`);
+    if (!s.get("providers").some((p) => p.id === id)) {
+      throw new Error(`Provider not found: ${id}`);
     }
-    s.set("defaultProfileId", id);
+    s.set("defaultProviderId", id);
   }
 
-  getDefaultProfile(): ProviderProfile | null {
+  getDefaultProvider(): Provider | null {
     const s = store();
-    const id = s.get("defaultProfileId");
-    return id ? this.getProfile(id, false) : null;
+    const id = s.get("defaultProviderId");
+    return id ? this.getProvider(id, false) : null;
   }
 
   /* ---------- Tavily ---------- */
@@ -185,25 +247,25 @@ export class SettingsStore {
   /* ---------- One-time bootstrap from env ---------- */
   bootstrapFromEnv(): void {
     const s = store();
-    if (s.get("profiles").length > 0) return;
+    if (s.get("providers").length > 0) return;
 
     const openaiKey = process.env["OPENAI_API_KEY"];
     if (openaiKey) {
-      this.upsertProfile({
+      this.upsertProvider({
         label: "OpenAI",
         kind: "openai",
-        model: "gpt-4o-mini",
         baseURL: process.env["OPENAI_BASE_URL"] || undefined,
+        models: ["gpt-4o-mini"],
         apiKey: openaiKey,
       });
     }
 
     const anthropicKey = process.env["ANTHROPIC_API_KEY"];
     if (anthropicKey) {
-      this.upsertProfile({
+      this.upsertProvider({
         label: "Anthropic",
         kind: "anthropic",
-        model: "claude-3-5-sonnet-latest",
+        models: ["claude-3-5-sonnet-latest"],
         apiKey: anthropicKey,
       });
     }
@@ -219,11 +281,11 @@ export function getSettingsStore(): SettingsStore {
   return _singleton;
 }
 
-/** Convenience templates surfaced in the Settings UI. */
-export const PROVIDER_TEMPLATES: { label: string; kind: ProviderKind; model: string; baseURL?: string }[] = [
-  { label: "OpenAI Official", kind: "openai", model: "gpt-4o-mini" },
-  { label: "Anthropic", kind: "anthropic", model: "claude-3-5-sonnet-latest" },
-  { label: "DeepSeek", kind: "openai-compat", model: "deepseek-chat", baseURL: "https://api.deepseek.com/v1" },
-  { label: "Qwen (DashScope)", kind: "openai-compat", model: "qwen-plus", baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
-  { label: "Moonshot Kimi", kind: "openai-compat", model: "moonshot-v1-32k", baseURL: "https://api.moonshot.cn/v1" },
+/** Convenience templates surfaced in the provider wizard. */
+export const PROVIDER_TEMPLATES: { label: string; kind: ProviderKind; baseURL?: string }[] = [
+  { label: "OpenAI", kind: "openai" },
+  { label: "Anthropic", kind: "anthropic" },
+  { label: "DeepSeek", kind: "openai-compat", baseURL: "https://api.deepseek.com/v1" },
+  { label: "Qwen (DashScope)", kind: "openai-compat", baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+  { label: "Moonshot Kimi", kind: "openai-compat", baseURL: "https://api.moonshot.cn/v1" },
 ];

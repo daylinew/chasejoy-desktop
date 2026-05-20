@@ -37,19 +37,25 @@ export function buildAgent(opts: {
   const { row, memoryService, approvalBroker, emit } = opts;
 
   const settings = getSettingsStore();
-  const profile = settings.getProfile(row.modelProfileId, false);
-  if (!profile) throw new Error(`Profile not found for agent ${row.id}: ${row.modelProfileId}`);
-  const apiKey = settings.getApiKey(profile.id);
+  const provider = settings.getProvider(row.providerId, false);
+  if (!provider) throw new Error(`Provider not found for agent ${row.id}: ${row.providerId}`);
+  const apiKey = settings.getApiKey(provider.id);
   if (!apiKey) {
     throw new Error(
-      `API key missing for profile "${profile.label}". Open Settings and fill it in before running this agent.`,
+      `API key missing for provider "${provider.label}". Open Settings and fill it in before running this agent.`,
+    );
+  }
+  const modelName = row.model || provider.models[0];
+  if (!modelName) {
+    throw new Error(
+      `No model selected for agent "${row.name}". Open Settings, fetch models for "${provider.label}", then re-select.`,
     );
   }
 
   fs.mkdirSync(row.workspaceDir, { recursive: true });
 
-  const model = createChatModel(profile, apiKey, { streaming: true });
-  const evaluator = createChatModel(profile, apiKey, { streaming: false, temperature: 0 });
+  const model = createChatModel(provider, apiKey, modelName, { streaming: true });
+  const evaluator = createChatModel(provider, apiKey, modelName, { streaming: false, temperature: 0 });
 
   let activeThreadId: string | null = null;
   const threadRef = () => activeThreadId;

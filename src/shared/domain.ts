@@ -6,18 +6,20 @@
 
 export type ProviderKind = "openai" | "openai-compat" | "anthropic";
 
-export interface ProviderProfile {
+export interface Provider {
   id: string;
-  /** Friendly label such as "OpenAI Official", "DeepSeek" */
+  /** Friendly label such as "OpenAI", "DeepSeek" */
   label: string;
   kind: ProviderKind;
-  /** Model name e.g. "gpt-4o-mini", "claude-sonnet-4-5", "deepseek-chat" */
-  model: string;
   /** Optional override; for openai-compat this is required. */
   baseURL?: string;
   /** Set on read only when the renderer needs it; otherwise omitted. */
   apiKey?: string;
-  /** When true, this profile is the default for new agents. */
+  /** True when an API key is stored. Sent to the renderer in place of the key itself. */
+  hasApiKey?: boolean;
+  /** Models available under this provider, populated via fetchModels. */
+  models: string[];
+  /** When true, this provider is the default for new agents. */
   isDefault?: boolean;
 }
 
@@ -53,7 +55,8 @@ export interface AgentRow {
   name: string;
   role: string | null;
   goalPrompt: string;
-  modelProfileId: string;
+  providerId: string;
+  model: string;
   workspaceDir: string;
   enabledTools: ToolKey[];
   enabledBuiltinTools: BuiltinToolKey[];
@@ -68,7 +71,8 @@ export interface NewAgentInput {
   name: string;
   role?: string;
   goalPrompt: string;
-  modelProfileId: string;
+  providerId: string;
+  model: string;
   /** Defaults to <appUserData>/workspaces/<agentId>. */
   workspaceDir?: string;
   enabledTools?: ToolKey[];

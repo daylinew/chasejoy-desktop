@@ -7,7 +7,7 @@ import type {
   MemoryRow,
   MessageRow,
   MilestoneRow,
-  ProviderProfile,
+  Provider,
   ThreadRow,
   StreamEvent,
 } from "@shared/domain.js";
@@ -23,8 +23,8 @@ interface AssistantBubble {
 
 export interface AppState {
   /* Settings */
-  profiles: ProviderProfile[];
-  loadingProfiles: boolean;
+  providers: Provider[];
+  loadingProviders: boolean;
 
   /* Agents */
   agents: AgentRow[];
@@ -61,7 +61,7 @@ export interface AppState {
   goalEditorOpen: boolean;
 
   /* Mutators */
-  refreshProfiles: () => Promise<void>;
+  refreshProviders: () => Promise<void>;
   refreshAgents: () => Promise<void>;
   selectAgent: (id: string | null) => Promise<void>;
   selectThread: (id: string) => Promise<void>;
@@ -83,8 +83,8 @@ export interface AppState {
 const api = () => window.chasejoy.api;
 
 export const useAppStore = create<AppState>((set, get) => ({
-  profiles: [],
-  loadingProfiles: false,
+  providers: [],
+  loadingProviders: false,
   agents: [],
   activeAgentId: null,
   loadingAgents: false,
@@ -106,14 +106,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   newAgentOpen: false,
   goalEditorOpen: false,
 
-  async refreshProfiles() {
-    set({ loadingProfiles: true });
+  async refreshProviders() {
+    set({ loadingProviders: true });
     try {
-      const profiles = await api().settingsListProfiles();
-      set({ profiles, loadingProfiles: false });
+      const providers = await api().settingsListProviders();
+      set({ providers, loadingProviders: false });
     } catch (err) {
       console.error(err);
-      set({ loadingProfiles: false });
+      set({ loadingProviders: false });
     }
   },
 

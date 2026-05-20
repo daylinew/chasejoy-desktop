@@ -50,10 +50,11 @@ const api: ApiSurface = {
   /* Settings */
   settingsGet: () => rpc(Channels.settingsGet),
   settingsSetMeta: (patch) => rpc(Channels.settingsSetMeta, patch),
-  settingsListProfiles: () => rpc(Channels.settingsListProfiles),
-  settingsUpsertProfile: (input) => rpc(Channels.settingsUpsertProfile, input),
-  settingsRemoveProfile: (id) => rpc(Channels.settingsRemoveProfile, id),
-  settingsSetDefaultProfile: (id) => rpc(Channels.settingsSetDefaultProfile, id),
+  settingsListProviders: () => rpc(Channels.settingsListProviders),
+  settingsUpsertProvider: (input) => rpc(Channels.settingsUpsertProvider, input),
+  settingsRemoveProvider: (id) => rpc(Channels.settingsRemoveProvider, id),
+  settingsSetDefaultProvider: (id) => rpc(Channels.settingsSetDefaultProvider, id),
+  settingsFetchModels: (draft) => rpc(Channels.settingsFetchModels, draft),
   settingsSetTavilyKey: (key) => rpc(Channels.settingsSetTavilyKey, key),
 };
 

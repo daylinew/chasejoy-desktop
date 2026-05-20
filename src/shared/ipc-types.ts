@@ -20,7 +20,8 @@ import type {
   MilestoneRow,
   MilestoneStatus,
   NewAgentInput,
-  ProviderProfile,
+  Provider,
+  ProviderKind,
   StreamEvent,
   ThreadRow,
 } from "./domain.js";
@@ -61,10 +62,11 @@ export const Channels = {
 
   settingsGet: "settings:get",
   settingsSetMeta: "settings:setMeta",
-  settingsListProfiles: "settings:listProfiles",
-  settingsUpsertProfile: "settings:upsertProfile",
-  settingsRemoveProfile: "settings:removeProfile",
-  settingsSetDefaultProfile: "settings:setDefaultProfile",
+  settingsListProviders: "settings:listProviders",
+  settingsUpsertProvider: "settings:upsertProvider",
+  settingsRemoveProvider: "settings:removeProvider",
+  settingsSetDefaultProvider: "settings:setDefaultProvider",
+  settingsFetchModels: "settings:fetchModels",
   settingsSetTavilyKey: "settings:setTavilyKey",
 
   /* Renderer-bound events */
@@ -135,12 +137,17 @@ export interface ApiSurface {
   /* Settings */
   settingsGet(): Promise<AppMeta>;
   settingsSetMeta(patch: Partial<AppMeta>): Promise<AppMeta>;
-  settingsListProfiles(): Promise<ProviderProfile[]>;
-  settingsUpsertProfile(
-    input: Omit<ProviderProfile, "id" | "isDefault"> & { id?: string },
-  ): Promise<ProviderProfile>;
-  settingsRemoveProfile(id: string): Promise<void>;
-  settingsSetDefaultProfile(id: string): Promise<void>;
+  settingsListProviders(): Promise<Provider[]>;
+  settingsUpsertProvider(
+    input: Omit<Provider, "id" | "isDefault" | "hasApiKey"> & { id?: string },
+  ): Promise<Provider>;
+  settingsRemoveProvider(id: string): Promise<void>;
+  settingsSetDefaultProvider(id: string): Promise<void>;
+  settingsFetchModels(draft: {
+    kind: ProviderKind;
+    baseURL?: string;
+    apiKey: string;
+  }): Promise<string[]>;
   settingsSetTavilyKey(key: string | null): Promise<void>;
 }
 

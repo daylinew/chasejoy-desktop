@@ -14,7 +14,8 @@ interface AgentDbRow {
   name: string;
   role: string | null;
   goal_prompt: string;
-  model_profile_id: string;
+  provider_id: string;
+  model: string;
   workspace_dir: string;
   enabled_tools: string;
   enabled_builtin_tools: string;
@@ -30,7 +31,8 @@ function fromRow(r: AgentDbRow): AgentRow {
     name: r.name,
     role: r.role,
     goalPrompt: r.goal_prompt,
-    modelProfileId: r.model_profile_id,
+    providerId: r.provider_id,
+    model: r.model,
     workspaceDir: r.workspace_dir,
     enabledTools: JSON.parse(r.enabled_tools) as ToolKey[],
     enabledBuiltinTools: JSON.parse(r.enabled_builtin_tools) as BuiltinToolKey[],
@@ -50,17 +52,18 @@ export class AgentRepository {
 
     this.db
       .prepare(
-        `INSERT INTO agents (id, name, role, goal_prompt, model_profile_id, workspace_dir,
+        `INSERT INTO agents (id, name, role, goal_prompt, provider_id, model, workspace_dir,
                              enabled_tools, enabled_builtin_tools, allowed_extra_paths,
                              created_at, updated_at, archived)
-         VALUES (@id, @name, @role, @goal, @model, @ws, @tools, @btools, @paths, @now, @now, 0)`,
+         VALUES (@id, @name, @role, @goal, @provider, @model, @ws, @tools, @btools, @paths, @now, @now, 0)`,
       )
       .run({
         id,
         name: input.name,
         role: input.role ?? null,
         goal: input.goalPrompt,
-        model: input.modelProfileId,
+        provider: input.providerId,
+        model: input.model,
         ws: input.workspaceDir,
         tools: JSON.stringify(input.enabledTools ?? []),
         btools: JSON.stringify(input.enabledBuiltinTools ?? []),
@@ -86,7 +89,7 @@ export class AgentRepository {
 
     this.db
       .prepare(
-        `UPDATE agents SET name=@name, role=@role, goal_prompt=@goal, model_profile_id=@model,
+        `UPDATE agents SET name=@name, role=@role, goal_prompt=@goal, provider_id=@provider, model=@model,
                             workspace_dir=@ws, enabled_tools=@tools, enabled_builtin_tools=@btools,
                             allowed_extra_paths=@paths, updated_at=@updated, archived=@archived
          WHERE id=@id`,
@@ -96,7 +99,8 @@ export class AgentRepository {
         name: merged.name,
         role: merged.role,
         goal: merged.goalPrompt,
-        model: merged.modelProfileId,
+        provider: merged.providerId,
+        model: merged.model,
         ws: merged.workspaceDir,
         tools: JSON.stringify(merged.enabledTools),
         btools: JSON.stringify(merged.enabledBuiltinTools),

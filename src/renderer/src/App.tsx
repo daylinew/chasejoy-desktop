@@ -5,7 +5,7 @@ import { useAppStore } from "./stores/appStore";
 
 export function App() {
   const refreshAgents = useAppStore((s) => s.refreshAgents);
-  const refreshProfiles = useAppStore((s) => s.refreshProfiles);
+  const refreshProviders = useAppStore((s) => s.refreshProviders);
   const applyStreamEvent = useAppStore((s) => s.applyStreamEvent);
   const setApproval = useAppStore((s) => s.setApproval);
 
@@ -18,7 +18,7 @@ export function App() {
       return;
     }
 
-    void refreshProfiles();
+    void refreshProviders();
     void refreshAgents();
 
     const offStream = bridge.on.onStream((evt) => applyStreamEvent(evt));
@@ -27,7 +27,7 @@ export function App() {
       offStream();
       offApproval();
     };
-  }, [refreshAgents, refreshProfiles, applyStreamEvent, setApproval]);
+  }, [refreshAgents, refreshProviders, applyStreamEvent, setApproval]);
 
   if (!window.chasejoy) {
     return (

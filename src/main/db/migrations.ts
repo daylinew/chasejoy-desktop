@@ -124,4 +124,12 @@ CREATE TABLE IF NOT EXISTS approval_policies (
 `,
 };
 
-export const migrations: Migration[] = [m0001];
+const m0002: Migration = {
+  name: "0002_provider_split",
+  sql: `
+ALTER TABLE agents RENAME COLUMN model_profile_id TO provider_id;
+ALTER TABLE agents ADD COLUMN model TEXT NOT NULL DEFAULT '';
+`,
+};
+
+export const migrations: Migration[] = [m0001, m0002];

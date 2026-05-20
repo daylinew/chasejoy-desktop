@@ -1,41 +1,58 @@
 import { useEffect, useState } from "react";
 
 import { useAppStore } from "@renderer/stores/appStore";
-import type { NewAgentInput, ProviderProfile } from "@shared/domain.js";
+import type { NewAgentInput } from "@shared/domain.js";
 
 const DEFAULT_GOAL_PLACEHOLDER =
   "e.g. \"Help me ship the MVP of my SaaS in 30 days. You are my CTO and project manager.\"";
 
 export function NewAgentWizard() {
   const setNewAgentOpen = useAppStore((s) => s.setNewAgentOpen);
-  const profiles = useAppStore((s) => s.profiles);
+  const providers = useAppStore((s) => s.providers);
   const refreshAgents = useAppStore((s) => s.refreshAgents);
-  const refreshProfiles = useAppStore((s) => s.refreshProfiles);
+  const refreshProviders = useAppStore((s) => s.refreshProviders);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
 
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [goal, setGoal] = useState("");
-  const [modelProfileId, setModelProfileId] = useState<string>("");
+  const [providerId, setProviderId] = useState<string>("");
+  const [model, setModel] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void refreshProfiles();
-  }, [refreshProfiles]);
+    void refreshProviders();
+  }, [refreshProviders]);
 
   useEffect(() => {
-    if (!modelProfileId && profiles.length > 0) {
-      const def = profiles.find((p) => p.isDefault) ?? profiles[0]!;
-      setModelProfileId(def.id);
+    if (!providerId && providers.length > 0) {
+      const def = providers.find((p) => p.isDefault) ?? providers[0]!;
+      setProviderId(def.id);
     }
-  }, [profiles, modelProfileId]);
+  }, [providers, providerId]);
+
+  /* Keep `model` valid whenever the chosen provider (or its model list) changes. */
+  useEffect(() => {
+    const p = providers.find((x) => x.id === providerId);
+    const ms = p?.models ?? [];
+    setModel((cur) => (ms.includes(cur) ? cur : ms[0] ?? ""));
+  }, [providerId, providers]);
+
+  const selectedProvider = providers.find((p) => p.id === providerId) ?? null;
+  const models = selectedProvider?.models ?? [];
+
+  function openSettings() {
+    setNewAgentOpen(false);
+    setSettingsOpen(true);
+  }
 
   async function onCreate() {
     setError(null);
-    if (!name.trim()) return setError("Name is required.");
-    if (!goal.trim()) return setError("Goal is required (it anchors the agent).");
-    if (!modelProfileId) return setError("Choose a provider profile. Add one in Settings if none exist.");
+    if (!name.trim()) return setError("名称必填。");
+    if (!goal.trim()) return setError("目标必填(它是 agent 的锚点)。");
+    if (!providerId) return setError("选择一个 Provider,没有就去 Settings 新增。");
+    if (!model) return setError("选择一个模型。没有可选项请在 Settings 中获取模型。");
 
     setBusy(true);
     try {
@@ -43,7 +60,8 @@ export function NewAgentWizard() {
         name: name.trim(),
         role: role.trim() || undefined,
         goalPrompt: goal.trim(),
-        modelProfileId,
+        providerId,
+        model,
       };
       await window.chasejoy.api.agentCreate(input);
       await refreshAgents();
@@ -89,31 +107,49 @@ export function NewAgentWizard() {
           </div>
         </Field>
 
-        <Field label="Model profile">
-          {profiles.length === 0 ? (
+        <Field label="Provider">
+          {providers.length === 0 ? (
             <button
-              onClick={() => {
-                setNewAgentOpen(false);
-                setSettingsOpen(true);
-              }}
+              onClick={openSettings}
               className="rounded border border-cj-border bg-cj-panel2 px-3 py-2 text-sm text-cj-accent hover:border-cj-accent"
             >
-              No profiles yet — open Settings to add one
+              还没有 Provider —— 打开 Settings 新增
             </button>
           ) : (
             <select
-              value={modelProfileId}
-              onChange={(e) => setModelProfileId(e.target.value)}
+              value={providerId}
+              onChange={(e) => setProviderId(e.target.value)}
               className="input"
             >
-              {profiles.map((p) => (
+              {providers.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {formatProfile(p)}
+                  {p.label} · {p.kind} ({p.models.length} 模型)
                 </option>
               ))}
             </select>
           )}
         </Field>
+
+        {providers.length > 0 ? (
+          <Field label="Model">
+            {models.length === 0 ? (
+              <button
+                onClick={openSettings}
+                className="rounded border border-cj-border bg-cj-panel2 px-3 py-2 text-sm text-cj-accent hover:border-cj-accent"
+              >
+                该 Provider 还没有模型 —— 去 Settings 测试并获取
+              </button>
+            ) : (
+              <select value={model} onChange={(e) => setModel(e.target.value)} className="input">
+                {models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        ) : null}
 
         {error ? <div className="text-sm text-cj-err">{error}</div> : null}
 
@@ -127,7 +163,7 @@ export function NewAgentWizard() {
           </button>
           <button
             onClick={() => void onCreate()}
-            disabled={busy || profiles.length === 0}
+            disabled={busy || providers.length === 0}
             className="rounded bg-cj-accent px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-cj-accent2 disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create agent"}
@@ -136,10 +172,6 @@ export function NewAgentWizard() {
       </div>
     </Modal>
   );
-}
-
-function formatProfile(p: ProviderProfile): string {
-  return `${p.label}  ·  ${p.model}${p.baseURL ? `  ·  ${p.baseURL}` : ""}`;
 }
 
 export function Modal(props: { title: string; onClose: () => void; children: React.ReactNode; widthClass?: string }) {

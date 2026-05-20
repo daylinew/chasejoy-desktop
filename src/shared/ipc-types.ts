@@ -146,7 +146,9 @@ export interface ApiSurface {
   settingsFetchModels(draft: {
     kind: ProviderKind;
     baseURL?: string;
-    apiKey: string;
+    /** When omitted, the stored key for providerId is used (edit flow). */
+    apiKey?: string;
+    providerId?: string;
   }): Promise<string[]>;
   settingsSetTavilyKey(key: string | null): Promise<void>;
 }

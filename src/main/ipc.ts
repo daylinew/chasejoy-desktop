@@ -139,7 +139,17 @@ export function registerIpc(win: BrowserWindow): () => void {
     settingsSetDefaultProvider: (id: never) => {
       settingsStore.setDefaultProvider(id as never);
     },
-    settingsFetchModels: (draft: never) => fetchModels(draft as never),
+    settingsFetchModels: (draft: never) => {
+      const d = draft as unknown as {
+        kind: import("@shared/domain.js").ProviderKind;
+        baseURL?: string;
+        apiKey?: string;
+        providerId?: string;
+      };
+      const apiKey = d.apiKey || (d.providerId ? settingsStore.getApiKey(d.providerId) : null);
+      if (!apiKey) throw new Error("API key is required to fetch models.");
+      return fetchModels({ kind: d.kind, baseURL: d.baseURL, apiKey });
+    },
     settingsSetTavilyKey: (key: never) => {
       settingsStore.setTavilyKey(key as never);
     },

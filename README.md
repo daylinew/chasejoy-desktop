@@ -7,12 +7,12 @@ Built with Electron + React + Vite + TypeScript.
 
 - **Multi-agent**: create as many specialised agents as you like (e.g. _Rust Learning Coach_, _SaaS CTO_, _Research Analyst_).
   Each agent has its own role, goal, isolated workspace, long-term memory and tool whitelist.
-- **Per-agent long-term memory**: SQLite + FTS5 keyword search today, a placeholder `embedding BLOB` column reserved for
-  future semantic recall (just drop in `sqlite-vec` — no schema migration). A background `memory-extractor` distils every
-  N messages into typed memories (`fact / preference / decision / artifact`). `cross_agent` memories are shared globally.
+- **DeepAgents-native memory**: long-term memory lives in each agent workspace at `/memories/AGENTS.md`, loaded through
+  DeepAgents' `memory` option and maintained with the built-in filesystem tools. Thread state is persisted with LangGraph
+  `SqliteSaver` checkpoints.
 - **Project NavBar — the anti-drift surface**: a top bar shows the agent's goal, milestone progress and a
   green/yellow/red alignment indicator. Every LLM call is wrapped by `alignmentMiddleware`, which
-  dynamically prepends the goal, active milestones and top-K relevant memories to the system prompt.
+  dynamically prepends the goal and active milestones to the system prompt.
   A periodic self-check (LLM-as-judge) writes `alignment_events` to the DB; the user can click **Realign**
   at any time to force the agent to pause and re-plan.
 - **Real toolset**: Tavily web search, clipboard read/write, screenshot capture, application launcher,
@@ -70,12 +70,12 @@ src/
       agent-factory.ts        createDeepAgent + FilesystemBackend + middlewares
       stream-bridge.ts        run → persist → emit StreamEvents
       model-factory.ts        ChatOpenAI / ChatAnthropic (+ OpenAI-compat baseURL)
-      memory/                 long-term memory service + extractor subagent
+      checkpointer.ts         LangGraph SqliteSaver checkpoint lifecycle
       middleware/             alignmentMiddleware (anti-drift)
       approval-hook.ts        approvalMiddleware (dangerous tool gating)
       alignment/              self-check (LLM-as-judge)
       tools/                  search / clipboard / screenshot / app-control / milestones
-      subagents/              researcher / file-editor / memory-extractor
+      subagents/              researcher / file-editor
   preload/index.ts            contextBridge → window.chasejoy.{api,on,version}
   renderer/                   React UI (Vite)
     stores/appStore.ts        zustand store for agents/threads/messages/stream/...
@@ -84,7 +84,7 @@ src/
       agent/                   AgentSidebar + NewAgentWizard
       project/                 ProjectNavBar + AlignmentBadge + GoalEditor
       chat/                    ChatView + MessageList + Composer + ApprovalModal
-      context/                 Todos / Files / Memory tabs
+      context/                 Todos / Files tabs
       settings/                SettingsView (profiles + Tavily)
   shared/
     domain.ts                 shared TypeScript types
@@ -95,8 +95,7 @@ src/
 
 1. **Static injection** — `alignmentMiddleware.wrapModelCall` runs before every LLM call.
    It builds a "project anchor" block containing: goal prompt, active+todo milestones,
-   completed-milestone count, and top-K memories retrieved via FTS5 against the latest user
-   turn. This block is prepended to the system message, never to user messages, so the LLM
+   and completed-milestone count. This block is prepended to the system message, never to user messages, so the LLM
    re-reads its goal on every step without polluting the visible chat.
 2. **Periodic self-check** — every N tool calls (default 4, configurable), the `runSelfCheck`
    judge asks a non-streaming LLM "is the last batch of actions serving the goal?" and writes
@@ -107,17 +106,15 @@ src/
 4. **Approval hooks** — any `execute / write_file / edit_file` call is intercepted; the user
    can deny, allow once, allow for this session, or trust permanently per agent.
 
-## Long-term memory model
+## Memory model
 
 | Layer | Storage | Lifetime | Where it lives |
 | ----- | ------- | -------- | -------------- |
-| L1 thread | `messages` table + langgraph `SqliteSaver` | within a thread | DB |
-| L2 agent  | `memories` table (FTS5 idx, `embedding BLOB` reserved) | across all threads of one agent | DB |
-| L3 global | `memories` with `cross_agent = 1` | across all agents (user-level facts) | DB |
+| Thread state | LangGraph `SqliteSaver` checkpoint keyed by `thread_id` | within a thread | `langgraph-checkpoints.db` |
+| Long-term memory | DeepAgents memory file `/memories/AGENTS.md` | across all threads of one agent | agent workspace |
+| UI log | `messages` table | chat display / audit | app DB |
 
-The `MemoryExtractor` subagent runs after each turn (debounced by message count), distilling
-chat into typed entries. Users can pin, forget, or globalise memories from the right-hand
-**Memory** panel.
+SQLite memories/FTS tables were removed; memory is no longer stored or searched through a custom repository.
 
 ## Troubleshooting
 

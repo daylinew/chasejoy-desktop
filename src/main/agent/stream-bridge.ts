@@ -40,7 +40,7 @@ class ToolMessageStub extends ToolMessage {
 /**
  * Owns the lifecycle of a single chat.stream IPC call.
  * Persists messages, fans out StreamEvents to the renderer, and triggers
- * post-turn jobs (self-check + memory extractor).
+ * post-turn jobs (self-check).
  */
 export class StreamBridge {
   private readonly active = new Map<string, RunContext>();
@@ -294,9 +294,7 @@ export class StreamBridge {
 
     /*
      * Long-term memory is handled by DeepAgents' native filesystem-backed
-     * memory at /memories/AGENTS.md. We keep post-turn jobs focused on
-     * product-specific alignment scoring instead of running a parallel
-     * extractor that would compete with the SDK memory path.
+     * memory at /memories/AGENTS.md. Post-turn work stays product-specific.
      */
   }
 }

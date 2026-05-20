@@ -1,6 +1,6 @@
 /**
  * Base system prompt for the main ChaseJoy agent.
- * The alignment middleware prepends a per-turn anchor block (goal/milestones/memories)
+ * The alignment middleware prepends a per-turn anchor block (goal/milestones)
  * to this base — keep this prompt focused on style, tool ethics, and output format.
  */
 export const CHASEJOY_BASE_PROMPT = `You are ChaseJoy, a focused desktop AI assistant running on the user's local machine.

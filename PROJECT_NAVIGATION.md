@@ -2,124 +2,65 @@
 
 Last updated: 2026-05-20
 
-## Current Stage
+## North Star
 
-ChaseJoy Desktop is at the working architecture stage: the Electron shell, React UI, provider settings, multi-agent CRUD, DeepAgents runtime, tool streaming, approval flow, project alignment, long-term memory, and LangGraph thread checkpointing are in place.
+ChaseJoy is a desktop Base Agent platform. It should let users build and run their own personal agent system through natural language, local context, reusable assets, visible execution, approvals, and artifacts.
 
-The current engineering rule is: use DeepAgents, LangChain, and LangGraph SDK capabilities first; only build custom code for product-specific behavior that the SDK does not cover.
+It is not a fixed vertical app and not a simple chatbot. Product scenarios such as coding review, test generation, Feishu assistant, or document creation should be buildable assets on top of the platform.
 
-## Product Direction
+Core rule: use DeepAgents, LangChain, and LangGraph SDK capabilities first. Only write custom code for product-specific behavior the SDK does not cover.
 
-ChaseJoy should be a desktop Base Agent platform, not a fixed bundle of vertical features and not a simple chatbot. The core purpose is to let users build their own personal Agent system through natural language, local context, reusable assets, and visible execution.
-
-The product should provide the substrate for users to create and run:
-
-- Agents: autonomous roles that can plan, reason, and act.
-- Workflows: standardized, observable, resumable processes.
-- Skills: reusable methods, standards, style guides, and domain knowledge.
-- Tools, protocols, and integrations: local or remote capabilities exposed safely to Agents and Workflows.
-- Runs and artifacts: execution history, intermediate state, final outputs, and approvals.
-
-Do not hard-code product direction around specific scenarios. Scenarios such as code review, test generation, or Feishu assistance should be buildable assets on top of the platform, not the platform's boundary.
-
-## Interaction Logic
-
-The main interaction loop:
-
-1. User describes a goal, task, repeated process, or desired assistant.
-2. Base Agent understands whether this calls for an Agent, Workflow, Skill, Tool, or Integration.
-3. Base Agent produces a draft asset or executes a one-off task.
-4. User reviews and confirms persistent assets before they are saved.
-5. Saved assets become cards under the relevant Project or Agent.
-6. User later clicks a card to run it with parameters, approvals, timeline, and artifacts.
-
-Important product rule:
-
-- Agents may propose and draft persistent assets, but should not silently create or mutate them. Creation must go through user confirmation.
-
-## Product Object Model
-
-- Project: local work context that groups agents, workflows, skills, memory, integrations, permissions, and runs.
-- Agent: long-lived autonomous role built on DeepAgents.
-- Workflow: structured execution graph built on LangGraph.
-- Skill: reusable knowledge or method loaded by agents or workflow nodes.
-- Tool: concrete capability or side effect, such as file, Git, shell, browser, desktop, or Feishu operations.
-- Protocol: standard extension surface such as MCP and ACP.
-- Run: one execution instance with inputs, timeline, logs, approvals, artifacts, and final status.
-- Memory: durable context that shapes future behavior.
-- Integration: external system connection and permission boundary.
-
-Boundary rule:
+## Product Model
 
 ```text
-Agent = intelligence and autonomous planning
-Workflow = controlled repeatable execution
-Skill = professional method or instruction
-Tool = capability
-Memory = accumulated durable context
+Agent       = autonomous planning and execution
+Workflow    = controlled repeatable execution
+Skill       = reusable method, standard, or instruction
+Tool        = concrete capability
+Memory      = durable context
 Integration = external system bridge
-Protocol = standard extension/runtime bridge
-Run = execution record
+Protocol    = MCP/ACP extension surface
+Run         = execution record with timeline, approvals, artifacts, and result
 ```
 
-## Workflow Shape
+Persistent assets can be drafted by agents, but saving or mutating them should go through user confirmation.
 
-Workflow should not be only Markdown. It should have a machine-readable definition plus human-readable supporting files.
+## UX Direction
 
-Recommended shape:
+The default interaction should feel closer to Codex/opencode than to a dashboard:
 
-- `workflow.json` or `workflow.yaml`: executable graph definition, inputs, steps, tools, outputs, approval points.
-- `README.md`: user-facing explanation.
-- `prompts/*.md`: prompt text for LLM nodes.
-- `schemas/*.json`: input/output contracts.
-- `skills/*/SKILL.md`: optional reusable methods used by the workflow.
+- Main surface: conversation plus inline execution cards.
+- Left sidebar: agents and conversations.
+- No default right-side technical state panel.
+- During a run, the assistant message shows visible work: `Working`, `Reading`, `Editing`, `Running`, `Delegating`, `Waiting for approval`.
+- After a run, the assistant message should keep a summary card: edited files, commands/checks, review/open artifact actions.
+- Approvals should be focused choices: deny, allow once, allow this chat, always allow.
+- Do not expose internal words in primary UI: IPC, stream events, tool calls, sandbox, unknown.
 
-Workflow UX should be card-based. Clicking a workflow card opens a parameter form or quick run, then shows a run timeline with step status, approvals, intermediate artifacts, retry/resume controls, and final outputs.
+Terminology:
 
-## Platform Architecture Direction
+- Use `Conversations`, not `Threads`.
+- Use `Files` or `Workspace files`, not `Sandbox`.
+- Use `Goal progress` / `Goal steps`, not raw `Milestones` in primary UI.
+- Use `Re-plan`, not `Realign`.
+- Hide alignment state when no check has happened.
 
-Keep the architecture split cleanly:
+## Architecture
 
-- Renderer UI: chats, asset cards, draft review, workflow run timelines, settings, approvals.
-- Application services: project, agent, workflow, skill, run, artifact, integration, and permission services.
-- Runtime layer: DeepAgents for autonomous agents; LangGraph for workflow execution and checkpointing.
-- Tool/integration/protocol layer: local files, Git, shell, browser, desktop, Feishu, MCP, ACP, and future connectors.
-- Persistence layer: app SQLite for product data; LangGraph checkpoint DB for execution state; workspace files for memory/assets/artifacts; Electron Store for provider/model/key settings.
-
-SDK-first rule:
-
-- Use DeepAgents for Base Agent behavior and memory.
-- Use LangGraph for Workflow execution, checkpointing, resumability, and human gates.
-- Use LangChain tools/model abstractions for tools and providers.
-- Custom code should focus on product objects, UI, permissions, integrations, and asset lifecycle.
-
-## Protocol Support Direction
-
-MCP and ACP are platform-level extension protocols and should be supported as first-class integration/runtime surfaces.
-
-MCP direction:
-
-- Let Agents and Workflows discover and call external tools/resources exposed by MCP servers.
-- Manage MCP server configuration, permissions, lifecycle, and trust boundaries in the desktop app.
-- Treat MCP tools as part of the reusable Tool layer, not as hard-coded product features.
-
-ACP direction:
-
-- Support agent-to-agent or app-to-agent interoperability where ACP is useful.
-- Let ChaseJoy expose selected Agents/Workflows as protocol-addressable capabilities when appropriate.
-- Preserve explicit permission and confirmation boundaries before external agents can trigger local side effects.
-
-Design rule:
-
-- Protocol support should plug into the same Tool, Integration, Permission, Run, and Artifact model as native tools.
+- Renderer UI: chat, execution cards, asset cards, settings, approvals, goal editor.
+- Application services: agent, conversation, workflow, skill, run, artifact, integration, permission.
+- Runtime: DeepAgents for autonomous agents; LangGraph for checkpointing, resumability, and future workflow execution.
+- Tools and protocols: local files, shell, desktop, browser, search, Git, Feishu, MCP, ACP.
+- Persistence: app SQLite for product data; LangGraph SQLite checkpoint DB for execution state; workspace files for memory/assets/artifacts; Electron Store for provider/model/key settings.
 
 ## Implemented
 
-### Desktop App Shell
+### Electron Shell
 
-- Electron main/preload/renderer structure is wired.
-- Renderer runs with `contextIsolation: true`, `nodeIntegration: false`, and a typed preload bridge.
-- React UI has agent sidebar, chat view, project nav, context panel, settings, new-agent wizard, and approval modal.
+- Electron main/preload/renderer structure.
+- Typed preload bridge with `contextIsolation: true`, `nodeIntegration: false`.
+- Dev mode opens renderer DevTools automatically.
+- Electron IPC is used for renderer/main communication; it does not appear in DevTools Network.
 
 Key files:
 
@@ -127,13 +68,12 @@ Key files:
 - `src/main/ipc.ts`
 - `src/preload/index.ts`
 - `src/renderer/src/App.tsx`
-- `src/renderer/src/stores/appStore.ts`
 
-### Provider And Model Settings
+### Provider Settings
 
-- Supports OpenAI, Anthropic, and OpenAI-compatible providers.
-- Provider metadata, model lists, default provider, and encrypted API keys are stored through `electron-store`.
-- `.env.example` is only a first-run seed template, not the main settings store.
+- OpenAI, Anthropic, and OpenAI-compatible providers.
+- Provider metadata, model list, default provider, and encrypted API keys use `electron-store`.
+- `.env.example` is only a first-run seed template.
 
 Key files:
 
@@ -144,8 +84,8 @@ Key files:
 ### Agent Runtime
 
 - Agents are built with `createDeepAgent`.
-- Uses DeepAgents `FilesystemBackend` in `virtualMode` scoped to each agent workspace.
-- Custom tools are added only for desktop/product capabilities: Tavily search, clipboard, screenshot, app/path opening, and milestones.
+- Each agent has a DeepAgents `FilesystemBackend` in `virtualMode` scoped to its workspace.
+- Custom product tools: Tavily search, clipboard, screenshot, app/path opening, goal steps.
 - Subagents currently include `researcher` and `file_editor`.
 
 Key files:
@@ -155,40 +95,51 @@ Key files:
 - `src/main/agent/tools/`
 - `src/main/agent/subagents/`
 
-### Memory Model
+### Streaming And Execution Visibility
 
-Memory has been moved off the old custom SQLite memory system.
+- Text streaming uses LangGraph/DeepAgents message projections.
+- Todo/files/tool activity use SDK stream projections and are bridged to renderer events.
+- Assistant messages show live execution activity in the chat flow.
+- Assistant messages can persist run tool events for Codex-like summary cards.
+- Short continuation messages such as `继续` are expanded internally into explicit execution instructions.
+
+Key files:
+
+- `src/main/agent/stream-bridge.ts`
+- `src/renderer/src/components/chat/MessageList.tsx`
+- `src/renderer/src/stores/appStore.ts`
+
+### Conversations
+
+- Conversations are user-facing LangGraph/app threads.
+- One agent can have multiple conversations with separate checkpointed state.
+- Conversations can be created, selected, and deleted from the left sidebar.
+- Deleting a conversation also deletes the corresponding LangGraph checkpoint thread.
+
+Key files:
+
+- `src/renderer/src/components/agent/AgentSidebar.tsx`
+- `src/main/ipc.ts`
+
+### Memory
 
 - Long-term memory: DeepAgents-native `/memories/AGENTS.md` in each agent workspace.
-- Thread/session state: LangGraph `SqliteSaver` checkpoint keyed by `thread_id`.
-- UI/chat log: `messages` table remains for display and audit, not as the source of agent state.
-- Legacy SQLite memory tables and FTS are removed by migration `0003_drop_legacy_sqlite_memories`.
+- Session state: LangGraph `SqliteSaver` checkpoint keyed by `thread_id`.
+- UI chat log: app `messages` table for display and audit, not the source of agent state.
+- Legacy custom SQLite memory tables were removed.
 
 Key files:
 
 - `src/main/agent/agent-factory.ts`
 - `src/main/agent/checkpointer.ts`
-- `src/main/agent/stream-bridge.ts`
 - `src/main/db/migrations.ts`
 
-### Chat Streaming
+### Goal Progress
 
-- User messages are persisted to the UI log.
-- DeepAgents stream events are bridged to renderer events.
-- Existing checkpointed threads resume from LangGraph state and only receive the new user message.
-- Old threads without checkpoints are migrated by sending the existing message history once.
-
-Key files:
-
-- `src/main/agent/stream-bridge.ts`
-- `src/main/db/repositories/messages.ts`
-- `src/main/db/repositories/threads.ts`
-
-### Alignment And Milestones
-
-- Project goal and active milestones are injected through `alignmentMiddleware`.
-- Periodic self-check uses the configured model as an out-of-band judge.
-- Milestones are stored in SQLite and exposed both through UI and agent tools.
+- Goal and active steps are injected with `alignmentMiddleware`.
+- Periodic self-check uses the configured model as an evaluator.
+- Goal steps are stored in SQLite and exposed to the agent through tools.
+- `Re-plan` asks the agent to review the goal and continue from a fresh plan.
 
 Key files:
 
@@ -197,10 +148,10 @@ Key files:
 - `src/main/agent/tools/milestone-tools.ts`
 - `src/main/db/repositories/milestones.ts`
 
-### Dangerous Action Approval
+### Approval
 
 - `execute`, `write_file`, and `edit_file` are intercepted by custom middleware.
-- User can allow once, allow for session, trust agent, or deny.
+- User can deny, allow once, allow for this chat, or always allow.
 - Approval policies persist in SQLite.
 
 Key files:
@@ -209,25 +160,43 @@ Key files:
 - `src/main/db/repositories/approvals.ts`
 - `src/renderer/src/components/chat/ApprovalModal.tsx`
 
-## Removed Or Deprecated
+### Workspace Opening
 
-- Custom SQLite long-term memory repository.
-- Memory FTS table and triggers.
-- `MemoryService`.
-- `MemoryExtractor`.
-- Memory panel in the right context area.
-- Memory IPC routes.
-- Agent tools `save_memory`, `search_memory`, `list_recent_memories`, `pin_memory`, and `forget_memory`.
+- `open_path` supports URLs, absolute OS paths, and DeepAgents workspace paths such as `/KFC-Thursday/index.html`.
+- Workspace-relative paths are resolved to the real agent workspace before Electron `shell.openPath`.
+
+Key files:
+
+- `src/main/agent/tools/app-control.ts`
+
+## Removed
+
+- Custom SQLite long-term memory service and FTS.
+- Memory extractor and memory IPC routes.
+- Old memory panel.
+- Agent memory tools: `save_memory`, `search_memory`, `list_recent_memories`, `pin_memory`, `forget_memory`.
+- Default right-side technical state panel.
 
 ## Known Gaps
 
-- Built-in DeepAgents tool whitelist fields exist (`enabledBuiltinTools`, `allowedExtraPaths`) but need a proper SDK-first enforcement pass using DeepAgents permissions/tool filtering.
-- Approval middleware works, but should be evaluated against LangGraph/DeepAgents native `interruptOn` now that checkpointing is present.
-- Memory file editing is currently agent-driven through DeepAgents filesystem tools; there is no dedicated user-facing memory editor.
-- MCP server management and tool/resource bridging are not implemented yet.
-- ACP support is not implemented yet.
-- Thread deletion removes app data and should also stay synchronized with checkpoint cleanup.
+- Run summary cards are not fully actionable yet: diff review, per-file undo/revert, and open artifact actions need implementation.
+- Built-in DeepAgents tool whitelist fields exist but need SDK-first enforcement via DeepAgents permissions/tool filtering.
+- Approval flow works, but should be compared with native LangGraph/DeepAgents interrupt support.
+- Old context panel components still exist in code and should be removed or repurposed as an optional artifact drawer.
+- No user-facing memory editor yet.
+- MCP server management and tool/resource bridge are not implemented.
+- ACP support is not implemented.
 - More end-to-end runtime smoke tests are needed with real providers.
+
+## Next Steps
+
+1. Make run summary cards actionable: open artifact, diff viewer, per-file review, undo/revert.
+2. Enforce built-in tool permissions using DeepAgents SDK primitives.
+3. Decide whether approval should migrate to native interrupt support.
+4. Design MCP server registry, permissions, and tool bridge.
+5. Define ACP support scope.
+6. Add smoke tests for create agent -> send message -> checkpoint resume -> memory read/write -> artifact open.
+7. Update README after the next implementation pass.
 
 ## Verification
 
@@ -235,13 +204,3 @@ Last verified locally:
 
 - `npm run typecheck`
 - `npm run build`
-
-## Recommended Next Steps
-
-1. Enforce built-in tool permissions using DeepAgents SDK primitives.
-2. Decide whether to migrate approval flow from custom middleware to native interrupt support.
-3. Add a lightweight memory file viewer/editor for `/memories/AGENTS.md` if users need direct control.
-4. Design MCP server registry, permissioning, and tool bridge.
-5. Define the ACP support scope and how ChaseJoy Agents/Workflows are exposed or consumed.
-6. Add smoke tests for create agent -> send message -> checkpoint resume -> memory file read/write.
-7. Revisit README after the next implementation pass so public docs and this navigation stay aligned.

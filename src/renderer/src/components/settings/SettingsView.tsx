@@ -44,7 +44,7 @@ export function SettingsView() {
     <Modal title="Settings" onClose={() => setOpen(false)} widthClass="max-w-3xl">
       <div className="space-y-6">
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-slate-100">Project anchor defaults</h3>
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">Project anchor defaults</h3>
           {meta ? (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Alignment self-check every N tool calls">
@@ -67,14 +67,14 @@ export function SettingsView() {
 
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-100">Providers</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Providers</h3>
             <button onClick={() => setWizard({})} className="btn-primary">
               + 新增
             </button>
           </div>
 
           {providers.length === 0 ? (
-            <div className="rounded border border-dashed border-cj-border px-3 py-4 text-xs text-cj-dim">
+            <div className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-4 text-sm text-cj-dim">
               还没有 provider。新增一个并获取模型,即可开始聊天。
             </div>
           ) : (
@@ -82,10 +82,10 @@ export function SettingsView() {
               {providers.map((p) => (
                 <li
                   key={p.id}
-                  className="flex items-center gap-3 rounded border border-cj-border bg-cj-panel2 px-3 py-2"
+                  className="flex items-center gap-3 rounded-lg border border-cj-border bg-white px-3 py-2 shadow-sm"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-slate-100">
+                    <div className="text-sm font-medium text-slate-900">
                       {p.label}
                       <span className="ml-2 chip">{p.kind}</span>
                       {p.isDefault ? <span className="ml-2 chip text-cj-accent">default</span> : null}
@@ -123,7 +123,7 @@ export function SettingsView() {
         </section>
 
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-slate-100">Tavily search API key</h3>
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">Tavily search API key</h3>
           <div className="flex gap-2">
             <input
               type="password"

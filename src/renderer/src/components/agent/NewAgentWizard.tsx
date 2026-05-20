@@ -156,7 +156,7 @@ export function NewAgentWizard() {
         <div className="flex justify-end gap-2 pt-2">
           <button
             onClick={() => setNewAgentOpen(false)}
-            className="rounded border border-cj-border px-3 py-1.5 text-sm hover:bg-cj-panel2"
+            className="btn-ghost"
             disabled={busy}
           >
             Cancel
@@ -164,7 +164,7 @@ export function NewAgentWizard() {
           <button
             onClick={() => void onCreate()}
             disabled={busy || providers.length === 0}
-            className="rounded bg-cj-accent px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-cj-accent2 disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create agent"}
           </button>
@@ -176,11 +176,11 @@ export function NewAgentWizard() {
 
 export function Modal(props: { title: string; onClose: () => void; children: React.ReactNode; widthClass?: string }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 p-4 backdrop-blur-sm">
       <div className={`max-h-[88vh] w-full overflow-y-auto rounded-xl border border-cj-border bg-cj-panel shadow-panel ${props.widthClass ?? "max-w-xl"}`}>
         <div className="flex items-center justify-between border-b border-cj-border px-4 py-3">
-          <div className="text-sm font-semibold">{props.title}</div>
-          <button onClick={props.onClose} className="rounded px-2 py-0.5 text-cj-dim hover:bg-cj-panel2">
+          <div className="text-sm font-semibold text-slate-900">{props.title}</div>
+          <button onClick={props.onClose} className="rounded-md px-2 py-0.5 text-cj-dim hover:bg-cj-panel2">
             ✕
           </button>
         </div>

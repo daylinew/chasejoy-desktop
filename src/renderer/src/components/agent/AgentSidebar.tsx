@@ -8,6 +8,7 @@ export function AgentSidebar() {
   const selectAgent = useAppStore((s) => s.selectAgent);
   const selectThread = useAppStore((s) => s.selectThread);
   const createThread = useAppStore((s) => s.createThread);
+  const deleteThread = useAppStore((s) => s.deleteThread);
   const setNewAgentOpen = useAppStore((s) => s.setNewAgentOpen);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
 
@@ -65,7 +66,7 @@ export function AgentSidebar() {
                 {isActive ? (
                   <div className="ml-3 mt-2 border-l border-cj-border pl-3">
                     <div className="mb-1 flex items-center justify-between pr-1 section-label">
-                      <span>Threads</span>
+                      <span>Conversations</span>
                       <button
                         onClick={() => void createThread()}
                         className="rounded px-1.5 py-0.5 text-cj-accent hover:bg-blue-50"
@@ -77,17 +78,34 @@ export function AgentSidebar() {
                       <div className="px-2 py-1 text-xs text-cj-dim">No conversations yet.</div>
                     ) : (
                       agentThreads.map((t) => (
-                        <button
+                        <div
                           key={t.id}
-                          onClick={() => void selectThread(t.id)}
-                          className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${
+                          className={`group flex items-center rounded-md ${
                             t.id === activeThreadId
                               ? "bg-cj-panel2 text-slate-900"
                               : "text-slate-600 hover:bg-cj-panel2"
                           }`}
                         >
-                          {t.title || "Untitled"}
-                        </button>
+                          <button
+                            onClick={() => void selectThread(t.id)}
+                            className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-xs"
+                            title={t.title || "Untitled"}
+                          >
+                            {t.title || "Untitled"}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Delete conversation "${t.title || "Untitled"}"?`)) {
+                                void deleteThread(t.id);
+                              }
+                            }}
+                            className="mr-1 rounded px-1.5 py-0.5 text-xs text-cj-dim opacity-0 hover:bg-cj-err/10 hover:text-cj-err group-hover:opacity-100"
+                            title="Delete conversation"
+                          >
+                            ×
+                          </button>
+                        </div>
                       ))
                     )}
                   </div>

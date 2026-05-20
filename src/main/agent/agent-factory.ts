@@ -68,7 +68,7 @@ export function buildAgent(opts: {
   const clipWrite = makeClipboardWriteTool();
   const screenshot = makeScreenshotTool({ workspaceDir: row.workspaceDir });
   const openApp = makeOpenAppTool();
-  const openPath = makeOpenPathTool();
+  const openPath = makeOpenPathTool({ workspaceDir: row.workspaceDir });
   const milestone = makeMilestoneTools(row.id, (kind, payload) => emit(kind, payload));
 
   const enabled = new Set(row.enabledTools);

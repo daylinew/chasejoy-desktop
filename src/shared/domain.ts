@@ -97,6 +97,13 @@ export interface MessageRow {
   createdAt: number;
 }
 
+export interface RunToolEvent {
+  id: string;
+  toolName: string;
+  argsJson: string;
+  resultPreview?: string;
+}
+
 export type MilestoneStatus = "todo" | "active" | "done" | "cancelled";
 
 export interface MilestoneRow {
@@ -167,7 +174,7 @@ export interface StreamEventBase {
 
 export type StreamEvent =
   | (StreamEventBase & { type: "message_delta"; messageId: string; role: MessageRole; deltaContent: string })
-  | (StreamEventBase & { type: "message_complete"; messageId: string; role: MessageRole; content: string; toolCalls?: unknown; subagents?: unknown })
+  | (StreamEventBase & { type: "message_complete"; messageId: string; role: MessageRole; content: string; toolCalls?: RunToolEvent[]; subagents?: unknown })
   | (StreamEventBase & { type: "tool_call"; toolName: string; argsJson: string; toolCallId: string })
   | (StreamEventBase & { type: "tool_result"; toolCallId: string; resultPreview: string })
   | (StreamEventBase & { type: "todos"; todos: { content: string; status: "pending" | "in_progress" | "completed" }[] })

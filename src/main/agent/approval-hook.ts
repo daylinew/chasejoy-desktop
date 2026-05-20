@@ -128,11 +128,11 @@ export function createApprovalMiddleware(opts: {
 function renderSummary(tool: string, args: Record<string, unknown>): string {
   if (tool === "execute") {
     const cmd = (args["command"] as string | undefined) ?? "(no command)";
-    return `Run shell command: ${cmd}`;
+    return `Run command: ${cmd}`;
   }
   if (tool === "write_file" || tool === "edit_file") {
     const fp = (args["file_path"] ?? args["path"] ?? "(unknown)") as string;
-    return `Modify file ${fp}`;
+    return tool === "write_file" ? `Create file: ${fp}` : `Edit file: ${fp}`;
   }
   return `Run ${tool}`;
 }

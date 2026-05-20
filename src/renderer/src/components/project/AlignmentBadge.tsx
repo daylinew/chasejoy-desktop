@@ -5,14 +5,14 @@ export function AlignmentBadge({ alignment }: { alignment: AlignmentEvent | null
     return (
       <span className="chip flex items-center gap-1.5" title="No alignment evaluation yet.">
         <span className="h-2 w-2 rounded-full bg-cj-dim" />
-        unknown
+        not checked
       </span>
     );
   }
   const map = {
-    green: { color: "bg-cj-ok", label: "aligned" },
-    yellow: { color: "bg-cj-warn", label: "drifting" },
-    red: { color: "bg-cj-err", label: "off-goal" },
+    green: { color: "bg-cj-ok", label: "on track" },
+    yellow: { color: "bg-cj-warn", label: "review" },
+    red: { color: "bg-cj-err", label: "off track" },
   } as const;
   const m = map[alignment.score];
   return (

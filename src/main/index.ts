@@ -23,7 +23,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: 1024,
     minHeight: 680,
     show: false,
-    backgroundColor: "#0f1115",
+    backgroundColor: "#f6f8fb",
     title: "ChaseJoy",
     autoHideMenuBar: true,
     webPreferences: {

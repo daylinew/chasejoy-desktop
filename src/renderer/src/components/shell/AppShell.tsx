@@ -3,7 +3,6 @@ import { useAppStore } from "@renderer/stores/appStore";
 import { AgentSidebar } from "../agent/AgentSidebar";
 import { ProjectNavBar } from "../project/ProjectNavBar";
 import { ChatView } from "../chat/ChatView";
-import { ContextPanel } from "../context/ContextPanel";
 import { NewAgentWizard } from "../agent/NewAgentWizard";
 import { SettingsView } from "../settings/SettingsView";
 import { GoalEditor } from "../project/GoalEditor";
@@ -27,10 +26,6 @@ export function AppShell() {
           <ChatView />
         </div>
       </main>
-
-      <aside className="w-[360px] shrink-0 border-l border-cj-border bg-white">
-        <ContextPanel />
-      </aside>
 
       {settingsOpen ? <SettingsView /> : null}
       {newAgentOpen ? <NewAgentWizard /> : null}

@@ -9,7 +9,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { createGraphRunStream } from "@langchain/langgraph";
 import { nanoid } from "nanoid";
 
-import type { AgentRow, MessageRow, StreamEvent, SubagentStreamInterface } from "@shared/domain.js";
+import type { AgentRow, MessageRow, RunToolEvent, StreamEvent, SubagentStreamInterface } from "@shared/domain.js";
 import { AgentRegistry } from "./agent-registry.js";
 import { MessageRepository } from "../db/repositories/messages.js";
 import { ThreadRepository } from "../db/repositories/threads.js";
@@ -23,7 +23,11 @@ interface RunContext {
   abortController: AbortController;
   toolCallCounter: number;
   toolCallSummaries: string[];
+  runToolEvents: RunToolEvent[];
+  seenToolCalls: Set<string>;
+  seenToolResults: Set<string>;
   lastAssistantText: string;
+  fallbackAssistantText: string;
 }
 
 class AIMessageStub extends AIMessage {
@@ -63,6 +67,7 @@ export class StreamBridge {
     const agentRow = this.registry.agentForThread(thread.id);
     const bundle = this.registry.getRuntime(agentRow.id);
     bundle.setActiveThread(thread.id);
+    const modelContent = expandShortContinuation(input.content);
 
     this.messageRepo.append(thread.id, "user", input.content);
     this.threadRepo.touch(thread.id);
@@ -73,7 +78,11 @@ export class StreamBridge {
       abortController: new AbortController(),
       toolCallCounter: 0,
       toolCallSummaries: [],
+      runToolEvents: [],
+      seenToolCalls: new Set(),
+      seenToolResults: new Set(),
       lastAssistantText: "",
+      fallbackAssistantText: "",
     };
     this.active.set(thread.id, ctx);
 
@@ -82,7 +91,7 @@ export class StreamBridge {
       metadata: { assistantId: agentRow.id },
     };
     const hasCheckpoint = await bundle.checkpointer.getTuple(checkpointConfig).then(Boolean);
-    const messages = hasCheckpoint ? [new HumanMessage(input.content)] : this.loadMessages(thread.id);
+    const messages = hasCheckpoint ? [new HumanMessage(modelContent)] : this.loadMessages(thread.id, modelContent);
 
     let assistantBuffer = "";
     const assistantMessageId = nanoid(14);
@@ -117,22 +126,47 @@ export class StreamBridge {
         { abortController: ctx.abortController }
       );
 
-      const eventLoop = async () => {
-        for await (const event of run) {
-          if (event.method === "updates" && event.params?.namespace?.length === 0) {
-            const node = event.params.node;
-            const values = (event.params as any)?.data?.values;
-            if (node && values) {
-              this.handleUpdates(
-                ctx,
-                { [node]: values },
-                assistantMessageId,
-                (text) => {
-                  assistantBuffer += text;
-                }
-              );
-            }
-          }
+      const valuesLoop = async () => {
+        for await (const values of run.values) {
+          this.handleUpdates(
+            ctx,
+            { values },
+            assistantMessageId,
+            (text) => {
+              assistantBuffer += text;
+            },
+          );
+        }
+      };
+
+      const messagesLoop = async () => {
+        for await (const message of run.messages) {
+          await Promise.all([
+            (async () => {
+              for await (const delta of message.text) {
+                if (!delta) continue;
+                assistantBuffer += delta;
+                ctx.lastAssistantText += delta;
+                this.emit({
+                  type: "message_delta",
+                  agentId: agentRow.id,
+                  threadId: thread.id,
+                  messageId: assistantMessageId,
+                  role: "assistant",
+                  deltaContent: delta,
+                });
+              }
+            })(),
+            (async () => {
+              for await (const call of message.toolCalls) {
+                this.recordToolCall(ctx, {
+                  id: call.id,
+                  name: call.name,
+                  args: call.args ?? call.input,
+                });
+              }
+            })(),
+          ]);
         }
       };
 
@@ -228,7 +262,7 @@ export class StreamBridge {
         }
       };
 
-      await Promise.all([eventLoop(), subagentsLoop()]);
+      await Promise.all([valuesLoop(), messagesLoop(), subagentsLoop()]);
     } catch (err) {
       const e = err as Error;
       this.emit({
@@ -241,15 +275,29 @@ export class StreamBridge {
       this.active.delete(thread.id);
     }
 
+    if (assistantBuffer.length === 0 && ctx.fallbackAssistantText) {
+      assistantBuffer = ctx.fallbackAssistantText;
+      this.emit({
+        type: "message_delta",
+        agentId: agentRow.id,
+        threadId: thread.id,
+        messageId: assistantMessageId,
+        role: "assistant",
+        deltaContent: assistantBuffer,
+      });
+    }
+
     if (assistantBuffer.length > 0) {
-      const final = this.messageRepo.append(thread.id, "assistant", assistantBuffer, null, subagentsList);
+      const finalText = assistantBuffer;
+      const final = this.messageRepo.append(thread.id, "assistant", assistantBuffer, ctx.runToolEvents, subagentsList);
       this.emit({
         type: "message_complete",
         agentId: agentRow.id,
         threadId: thread.id,
         messageId: final.id,
         role: "assistant",
-        content: assistantBuffer,
+        content: finalText,
+        toolCalls: ctx.runToolEvents,
         subagents: subagentsList,
       });
     }
@@ -269,19 +317,23 @@ export class StreamBridge {
 
   /* ---------- internals ---------- */
 
-  private loadMessages(threadId: string): BaseMessage[] {
+  private loadMessages(threadId: string, latestUserOverride?: string): BaseMessage[] {
     const rows: MessageRow[] = this.messageRepo.listByThread(threadId, 1000);
-    return rows.map((r) => {
+    return rows.map((r, index) => {
+      const content =
+        latestUserOverride && index === rows.length - 1 && r.role === "user"
+          ? latestUserOverride
+          : r.content;
       switch (r.role) {
         case "user":
-          return new HumanMessage(r.content);
+          return new HumanMessage(content);
         case "assistant":
-          return new AIMessageStub(r.content);
+          return new AIMessageStub(content);
         case "tool":
-          return new ToolMessageStub(r.content, r.id);
+          return new ToolMessageStub(content, r.id);
         case "system":
         default:
-          return new HumanMessage(r.content);
+          return new HumanMessage(content);
       }
     });
   }
@@ -341,44 +393,59 @@ export class StreamBridge {
     if (typeName === "ai" || typeName === "AIMessage" || typeName === "AIMessageChunk") {
       const ai = m as AIMessage | AIMessageChunk;
       const text = typeof ai.content === "string" ? ai.content : flattenContent(ai.content);
-      if (text) {
-        bufferAppend(text);
-        ctx.lastAssistantText = text;
-        this.emit({
-          type: "message_delta",
-          agentId: ctx.agent.id,
-          threadId: ctx.threadId,
-          messageId: assistantMessageId,
-          role: "assistant",
-          deltaContent: text,
-        });
-      }
-
+      if (text) ctx.fallbackAssistantText = text;
       const toolCalls = (ai as { tool_calls?: { id?: string; name?: string; args?: unknown }[] }).tool_calls ?? [];
       for (const call of toolCalls) {
-        ctx.toolCallCounter += 1;
-        const argsJson = safeJson(call.args);
-        ctx.toolCallSummaries.push(`${call.name}(${truncate(argsJson, 80)})`);
-        this.emit({
-          type: "tool_call",
-          agentId: ctx.agent.id,
-          threadId: ctx.threadId,
-          toolCallId: call.id ?? nanoid(8),
-          toolName: call.name ?? "(unknown)",
-          argsJson,
-        });
+        this.recordToolCall(ctx, call);
       }
     } else if (typeName === "tool" || typeName === "ToolMessage") {
       const tm = m as ToolMessage;
       const content = typeof tm.content === "string" ? tm.content : flattenContent(tm.content);
-      this.emit({
-        type: "tool_result",
-        agentId: ctx.agent.id,
-        threadId: ctx.threadId,
-        toolCallId: tm.tool_call_id ?? nanoid(8),
-        resultPreview: truncate(content, 400),
-      });
+      this.recordToolResult(ctx, tm.tool_call_id ?? nanoid(8), content);
     }
+  }
+
+  private recordToolCall(
+    ctx: RunContext,
+    call: { id?: string; name?: string; args?: unknown; input?: unknown },
+  ): void {
+    const toolCallId = call.id ?? nanoid(8);
+    if (ctx.seenToolCalls.has(toolCallId)) return;
+    ctx.seenToolCalls.add(toolCallId);
+
+    ctx.toolCallCounter += 1;
+    const argsJson = safeJson(call.args ?? call.input);
+    const toolName = call.name ?? "(unknown)";
+    ctx.runToolEvents.push({
+      id: toolCallId,
+      toolName,
+      argsJson,
+    });
+    ctx.toolCallSummaries.push(`${toolName}(${truncate(argsJson, 80)})`);
+    this.emit({
+      type: "tool_call",
+      agentId: ctx.agent.id,
+      threadId: ctx.threadId,
+      toolCallId,
+      toolName,
+      argsJson,
+    });
+  }
+
+  private recordToolResult(ctx: RunContext, toolCallId: string, content: string): void {
+    if (ctx.seenToolResults.has(toolCallId)) return;
+    ctx.seenToolResults.add(toolCallId);
+    const resultPreview = truncate(content, 400);
+    ctx.runToolEvents = ctx.runToolEvents.map((e) =>
+      e.id === toolCallId ? { ...e, resultPreview } : e,
+    );
+    this.emit({
+      type: "tool_result",
+      agentId: ctx.agent.id,
+      threadId: ctx.threadId,
+      toolCallId,
+      resultPreview,
+    });
   }
 
   private async runPostTurnJobs(
@@ -437,4 +504,17 @@ function safeJson(v: unknown): string {
 function truncate(s: string, n: number): string {
   if (!s) return "";
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+function expandShortContinuation(content: string): string {
+  const trimmed = content.trim();
+  if (!/^(继续|继续执行|开始|开始执行|go on|continue|proceed)$/i.test(trimmed)) return content;
+  return [
+    content,
+    "",
+    "Continue executing the current active goal or milestone now.",
+    "Do not merely acknowledge this instruction.",
+    "Use the available tools in this turn to create, edit, inspect, or verify the actual artifact.",
+    "If the current goal is to build a webpage/app/document, write the real file(s) first, then summarize the result and paths.",
+  ].join("\n");
 }

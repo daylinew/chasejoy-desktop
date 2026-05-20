@@ -9,21 +9,21 @@ export function FilesPanel() {
   const keys = Object.keys(files).sort();
 
   return (
-    <div className="flex h-full">
-      <div className="w-1/2 overflow-y-auto border-r border-cj-border p-2">
-        <div className="mb-2 text-xs uppercase tracking-wider text-cj-dim">Virtual filesystem</div>
+    <div className="flex h-full flex-col gap-4 p-4">
+      <section className="min-h-0">
+        <div className="mb-2 section-label">Files</div>
         {keys.length === 0 ? (
-          <div className="rounded border border-dashed border-cj-border px-3 py-4 text-xs text-cj-dim">
-            No files yet.
+          <div className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-4 text-sm text-cj-dim">
+            Files the assistant creates or edits will appear here.
           </div>
         ) : (
-          <ul className="space-y-0.5">
+          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-cj-border bg-white p-1 shadow-sm">
             {keys.map((k) => (
               <li key={k}>
                 <button
                   onClick={() => setSelected(k)}
-                  className={`block w-full truncate rounded px-2 py-1 text-left text-xs ${
-                    selected === k ? "bg-cj-accent/20 text-cj-accent" : "hover:bg-cj-panel2"
+                  className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${
+                    selected === k ? "bg-blue-50 text-cj-accent" : "text-slate-700 hover:bg-cj-panel2"
                   }`}
                   title={k}
                 >
@@ -33,16 +33,20 @@ export function FilesPanel() {
             ))}
           </ul>
         )}
-      </div>
-      <div className="w-1/2 overflow-y-auto p-2">
+      </section>
+
+      <section className="flex min-h-0 flex-1 flex-col">
+        <div className="mb-2 section-label">Preview</div>
         {selected ? (
-          <pre className="whitespace-pre-wrap break-words rounded border border-cj-border bg-cj-bg p-2 text-[11px] text-slate-200">
+          <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-cj-border bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100 shadow-sm">
 {files[selected]}
           </pre>
         ) : (
-          <div className="px-2 py-4 text-xs text-cj-dim">Select a file to preview.</div>
+          <div className="flex min-h-28 items-center rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-4 text-sm text-cj-dim">
+            Select a file to preview.
+          </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

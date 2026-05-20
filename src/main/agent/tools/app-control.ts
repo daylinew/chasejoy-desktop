@@ -1,6 +1,8 @@
 import { shell } from "electron";
 import { tool } from "@langchain/core/tools";
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 
 function launchByName(name: string): Promise<{ ok: boolean; message: string }> {
@@ -46,7 +48,7 @@ export function makeOpenAppTool() {
   );
 }
 
-export function makeOpenPathTool() {
+export function makeOpenPathTool(opts: { workspaceDir: string }) {
   return tool(
     async ({ target }) => {
       try {
@@ -54,9 +56,13 @@ export function makeOpenPathTool() {
           await shell.openExternal(target);
           return `Opened URL ${target} in default browser.`;
         }
-        const err = await shell.openPath(target);
-        if (err) return `Failed to open path: ${err}`;
-        return `Opened ${target}.`;
+        const resolved = resolveOpenTarget(target, opts.workspaceDir);
+        if (!resolved) {
+          return `Failed to open path: ${target}. The file does not exist in the workspace or on disk.`;
+        }
+        const err = await shell.openPath(resolved);
+        if (err) return `Failed to open path ${resolved}: ${err}`;
+        return `Opened ${resolved}.`;
       } catch (e) {
         return `Failed to open: ${(e as Error).message}`;
       }
@@ -64,10 +70,30 @@ export function makeOpenPathTool() {
     {
       name: "open_path",
       description:
-        "Open a file, folder, or URL with the system default handler. Pass an absolute file path for documents, a folder path to reveal it in Explorer/Finder, or an http(s) URL to open in the user's browser.",
+        "Open a file, folder, or URL with the system default handler. You may pass an absolute OS path or a workspace-relative/virtual path such as /index.html or /folder/file.html.",
       schema: z.object({
-        target: z.string().describe("Absolute path or URL to open"),
+        target: z.string().describe("Absolute path, workspace path, or URL to open"),
       }),
     },
   );
+}
+
+function resolveOpenTarget(target: string, workspaceDir: string): string | null {
+  const trimmed = target.trim();
+  const candidates = [trimmed];
+
+  if (!path.isAbsolute(trimmed)) {
+    candidates.push(path.join(workspaceDir, trimmed));
+  }
+
+  const virtualLike = trimmed.startsWith("/") || trimmed.startsWith("\\");
+  if (virtualLike && !/^[a-zA-Z]:[\\/]/.test(trimmed)) {
+    candidates.push(path.join(workspaceDir, trimmed.replace(/^[\\/]+/, "")));
+  }
+
+  for (const candidate of candidates) {
+    const normalized = path.normalize(candidate);
+    if (fs.existsSync(normalized)) return normalized;
+  }
+  return null;
 }

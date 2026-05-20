@@ -42,8 +42,8 @@ export function ProjectNavBar() {
         <div className="flex-1">
           <div className="flex items-baseline justify-between text-xs text-cj-dim">
             <span>
-              Milestones <span className="font-medium text-slate-800">{done}/{total}</span>
-              {active ? <span className="ml-2 text-cj-accent">active: {active.title}</span> : null}
+              Goal progress <span className="font-medium text-slate-800">{done}/{total}</span>
+              {active ? <span className="ml-2 text-cj-accent">current: {active.title}</span> : null}
             </span>
             <span>{pct}%</span>
           </div>
@@ -55,14 +55,14 @@ export function ProjectNavBar() {
           </div>
         </div>
 
-        <AlignmentBadge alignment={alignment} />
+        {alignment ? <AlignmentBadge alignment={alignment} /> : null}
 
         <button
           onClick={() => void realign()}
           className="btn-ghost"
-          title="Force the agent to pause and re-plan against the goal"
+          title="Ask the agent to pause, review the goal, and plan the next step"
         >
-          Realign
+          Re-plan
         </button>
 
         <button
@@ -70,7 +70,7 @@ export function ProjectNavBar() {
           className="btn-ghost"
           title="Edit goal and milestones"
         >
-          Edit goal
+          Goal
         </button>
       </div>
     </div>

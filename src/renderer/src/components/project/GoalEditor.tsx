@@ -85,13 +85,13 @@ export function GoalEditor() {
 
         <div>
           <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-wider text-cj-dim">
-            <span>Milestones</span>
+            <span>Goal steps</span>
             <span>{milestones.filter((m) => m.status === "done").length}/{milestones.length} done</span>
           </div>
 
           <div className="space-y-2">
             {milestones.map((m) => (
-              <div key={m.id} className="flex items-center gap-2 rounded border border-cj-border bg-cj-panel2 px-2 py-1.5">
+              <div key={m.id} className="flex items-center gap-2 rounded-lg border border-cj-border bg-white px-2 py-1.5 shadow-sm">
                 <select
                   value={m.status}
                   onChange={(e) => void updateMilestone(m.id, { status: e.target.value as MilestoneStatus })}
@@ -119,7 +119,7 @@ export function GoalEditor() {
             <input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="New milestone title"
+              placeholder="New step"
               className="input flex-1"
               onKeyDown={(e) => {
                 if (e.key === "Enter") void addMilestone();

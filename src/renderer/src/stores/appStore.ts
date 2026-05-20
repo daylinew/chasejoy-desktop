@@ -7,6 +7,7 @@ import type {
   MessageRow,
   MilestoneRow,
   Provider,
+  RunToolEvent,
   ThreadRow,
   StreamEvent,
   SubagentStreamInterface,
@@ -20,6 +21,7 @@ interface AssistantBubble {
   /** True while the assistant is still streaming into this bubble. */
   streaming: boolean;
   subagents?: SubagentStreamInterface[];
+  toolEvents?: RunToolEvent[];
 }
 
 export interface AppState {
@@ -49,7 +51,7 @@ export interface AppState {
   /* Context panels */
   todos: TodoItem[];
   files: Record<string, string>;
-  toolEvents: { id: string; toolName: string; argsJson: string; resultPreview?: string }[];
+  toolEvents: RunToolEvent[];
   /* Approval */
   pendingApproval: ApprovalRequest | null;
 
@@ -65,6 +67,7 @@ export interface AppState {
   selectAgent: (id: string | null) => Promise<void>;
   selectThread: (id: string) => Promise<void>;
   createThread: () => Promise<void>;
+  deleteThread: (id: string) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   cancelStream: () => Promise<void>;
   refreshMilestones: () => Promise<void>;
@@ -172,6 +175,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().selectThread(t.id);
   },
 
+  async deleteThread(id) {
+    await api().threadDelete(id);
+    const remaining = get().threads.filter((t) => t.id !== id);
+    set({ threads: remaining });
+    if (get().activeThreadId !== id) return;
+    if (remaining.length > 0) {
+      await get().selectThread(remaining[0]!.id);
+    } else {
+      set({
+        activeThreadId: null,
+        messages: [],
+        streamingBubble: null,
+        todos: [],
+        files: {},
+        toolEvents: [],
+        alignment: null,
+      });
+    }
+  },
+
   async sendMessage(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -195,6 +218,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       messages: [...get().messages, optimistic],
       composerBusy: true,
+      todos: [],
+      files: {},
+      toolEvents: [],
       streamingBubble: { id: `assistant-${Date.now()}`, content: "", streaming: true },
     });
 
@@ -270,6 +296,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           threadId: evt.threadId,
           role: evt.role,
           content: evt.content,
+          toolCalls: evt.toolCalls ? JSON.stringify(evt.toolCalls) : null,
           subagents: evt.subagents ? JSON.stringify(evt.subagents) : null,
           createdAt: Date.now(),
         };
@@ -298,19 +325,33 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       }
       case "tool_call": {
+        const bubble = get().streamingBubble;
+        const nextEvent = { id: evt.toolCallId, toolName: evt.toolName, argsJson: evt.argsJson };
         set({
           toolEvents: [
             ...get().toolEvents.slice(-49),
-            { id: evt.toolCallId, toolName: evt.toolName, argsJson: evt.argsJson },
+            nextEvent,
           ],
+          streamingBubble: bubble
+            ? { ...bubble, toolEvents: [...(bubble.toolEvents ?? []), nextEvent] }
+            : bubble,
         });
         break;
       }
       case "tool_result": {
+        const bubble = get().streamingBubble;
         set({
           toolEvents: get().toolEvents.map((t) =>
             t.id === evt.toolCallId ? { ...t, resultPreview: evt.resultPreview } : t,
           ),
+          streamingBubble: bubble
+            ? {
+                ...bubble,
+                toolEvents: (bubble.toolEvents ?? []).map((t) =>
+                  t.id === evt.toolCallId ? { ...t, resultPreview: evt.resultPreview } : t,
+                ),
+              }
+            : bubble,
         });
         break;
       }

@@ -16,7 +16,7 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl items-end gap-3 rounded-2xl border border-cj-border bg-white p-2 shadow-panel">
+    <div className="mx-auto flex max-w-5xl items-end gap-3 rounded-2xl border border-cj-border bg-white p-2 shadow-panel">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

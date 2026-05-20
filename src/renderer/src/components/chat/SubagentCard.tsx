@@ -65,30 +65,30 @@ export function SubagentCard({
   const elapsed = getElapsedTime(subagent.startedAt, subagent.completedAt);
 
   return (
-    <div className="rounded-xl border border-cj-border bg-cj-panel2 shadow-panel overflow-hidden transition-all duration-200">
+    <div className="overflow-hidden rounded-xl border border-cj-border bg-white shadow-sm transition-all duration-200">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between p-3.5 hover:bg-cj-border/30 transition-colors duration-150"
+        className="flex w-full items-center justify-between gap-3 p-3.5 text-left transition-colors duration-150 hover:bg-cj-panel2"
       >
         <div className="flex items-center gap-3">
           <StatusIcon status={subagent.status} />
-          <div className="text-left">
-            <h4 className="font-semibold text-sm capitalize text-slate-100">{title}</h4>
+          <div className="min-w-0">
+            <h4 className="truncate text-sm font-semibold capitalize text-slate-900">{title}</h4>
             {description && (
-              <p className="text-xs text-cj-dim line-clamp-1 mt-0.5">{description}</p>
+              <p className="mt-0.5 line-clamp-1 text-xs text-cj-dim">{description}</p>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           {elapsed && (
-            <span className="text-xs font-mono text-cj-dim bg-cj-bg px-1.5 py-0.5 rounded border border-cj-border/50">{elapsed}</span>
+            <span className="rounded border border-cj-border bg-cj-panel2 px-1.5 py-0.5 font-mono text-xs text-cj-dim">{elapsed}</span>
           )}
           <StatusBadge status={subagent.status} />
         </div>
       </button>
 
       {expanded && displayContent && (
-        <div className="border-t border-cj-border bg-cj-panel/50 px-4 py-3 text-xs text-slate-200 font-mono leading-relaxed max-h-72 overflow-y-auto whitespace-pre-wrap">
+        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap border-t border-cj-border bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed text-slate-100">
           {displayContent}
           {subagent.status === "running" && (
             <span className="inline-block h-3.5 w-1.5 animate-pulse bg-cj-accent ml-1" />
@@ -109,17 +109,17 @@ export function SubagentProgress({
   const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
-    <div className="space-y-1.5 bg-cj-panel/20 p-2.5 rounded-lg border border-cj-border/40">
-      <div className="flex items-center justify-between text-xs text-cj-dim font-medium">
+    <div className="space-y-1.5 rounded-lg border border-cj-border bg-white p-2.5 shadow-sm">
+      <div className="flex items-center justify-between text-xs font-medium text-cj-dim">
         <span className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-cj-accent animate-pulse" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cj-accent" />
           Subagent progress
         </span>
         <span className="font-mono">
           {completed}/{total} complete
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-cj-border">
+      <div className="h-1.5 overflow-hidden rounded-full bg-cj-panel2">
         <div
           className="h-full rounded-full bg-cj-accent transition-all duration-500 ease-out"
           style={{ width: `${percentage}%` }}
@@ -143,7 +143,7 @@ export function SynthesisIndicator({
   if (!allComplete || !isLoading) return null;
 
   return (
-    <div className="flex items-center gap-2.5 rounded-xl bg-cj-accent2/5 border border-cj-accent2/20 px-4 py-3 text-sm text-cj-accent2 animate-pulse">
+    <div className="flex animate-pulse items-center gap-2.5 rounded-xl border border-cj-accent2/20 bg-cj-accent2/5 px-4 py-3 text-sm text-cj-accent2">
       <span className="animate-spin font-semibold text-base">⟳</span>
       <span>
         Synthesizing results from {subagents.length} subagent

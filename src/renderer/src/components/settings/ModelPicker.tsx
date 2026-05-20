@@ -44,7 +44,7 @@ export function ModelPicker(props: {
           ) : (
             visible.map((m) => (
               <li key={m}>
-                <label className="flex cursor-pointer items-center gap-2 rounded border border-cj-border bg-cj-panel2 px-2 py-1.5 text-sm hover:border-cj-accent">
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-cj-border bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm hover:border-cj-accent">
                   <input type="checkbox" checked={selected.has(m)} onChange={() => toggle(m)} />
                   <span className="truncate">{m}</span>
                 </label>

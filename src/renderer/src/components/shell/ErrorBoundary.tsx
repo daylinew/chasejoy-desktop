@@ -19,9 +19,9 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
     if (this.state.err) {
       return (
         <div className="flex h-full w-full items-center justify-center p-6">
-          <div className="max-w-lg rounded-lg border border-cj-err/40 bg-cj-panel p-6">
+          <div className="max-w-lg rounded-xl border border-cj-err/30 bg-white p-6 shadow-panel">
             <div className="mb-2 text-base font-semibold text-cj-err">Something went wrong</div>
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-cj-bg p-3 text-xs text-slate-200">
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
 {this.state.err.stack ?? this.state.err.message}
             </pre>
             <button

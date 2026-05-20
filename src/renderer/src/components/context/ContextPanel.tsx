@@ -4,8 +4,8 @@ import { TodoPanel } from "./TodoPanel";
 import { FilesPanel } from "./FilesPanel";
 
 const TABS: { key: "todos" | "files"; label: string }[] = [
-  { key: "todos", label: "Progress" },
-  { key: "files", label: "Sandbox" },
+  { key: "todos", label: "Activity" },
+  { key: "files", label: "Files" },
 ];
 
 export function ContextPanel() {
@@ -15,8 +15,8 @@ export function ContextPanel() {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-cj-border px-4 py-4">
-        <div className="text-base font-semibold tracking-tight text-slate-950">Agent State</div>
-        <div className="mt-0.5 text-xs text-cj-dim">Plans, tool calls, and workspace files</div>
+        <div className="text-base font-semibold tracking-tight text-slate-950">Current Work</div>
+        <div className="mt-0.5 text-xs text-cj-dim">Live plan, actions, and files</div>
       </div>
       <div className="flex items-center gap-1 border-b border-cj-border px-3 py-2">
         {TABS.map((t) => (

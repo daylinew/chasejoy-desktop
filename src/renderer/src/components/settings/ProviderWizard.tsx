@@ -9,7 +9,7 @@ import { ModelPicker } from "./ModelPicker";
 export const PROVIDER_TEMPLATES: { label: string; kind: ProviderKind; baseURL?: string }[] = [
   { label: "OpenAI", kind: "openai" },
   { label: "Anthropic", kind: "anthropic" },
-  { label: "DeepSeek", kind: "openai-compat", baseURL: "https://api.deepseek.com/v1" },
+  { label: "DeepSeek", kind: "deepseek", baseURL: "https://api.deepseek.com" },
   {
     label: "Qwen (DashScope)",
     kind: "openai-compat",
@@ -28,8 +28,8 @@ interface Draft {
 }
 
 /**
- * Two-step provider setup. New mode: step 1 picks a template, step 2 fills
- * credentials + fetches models. Edit mode jumps straight to step 2.
+ * Two-step model service setup. New mode: step 1 picks a Chatbox-like service
+ * template, step 2 fills credentials + selects exposed models.
  */
 export function ProviderWizard(props: { editing?: Provider; onClose: () => void }) {
   const refreshProviders = useAppStore((s) => s.refreshProviders);
@@ -55,6 +55,7 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
   const [candidates, setCandidates] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [manualModel, setManualModel] = useState("");
 
   function pickTemplate(t: (typeof PROVIDER_TEMPLATES)[number] | "custom") {
     if (t === "custom") {
@@ -89,8 +90,8 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
   }
 
   async function save() {
-    if (draft.kind === "openai-compat" && !draft.baseURL.trim()) {
-      setError("OpenAI 兼容 provider 必须填写 Base URL。");
+    if ((draft.kind === "openai-compat" || draft.kind === "anthropic-compat") && !draft.baseURL.trim()) {
+      setError("兼容服务必须填写 Base URL。");
       return;
     }
     setSaving(true);
@@ -112,9 +113,18 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
     }
   }
 
+  function addManualModel() {
+    const model = manualModel.trim();
+    if (!model) return;
+    if (!draft.models.includes(model)) {
+      setDraft({ ...draft, models: [...draft.models, model] });
+    }
+    setManualModel("");
+  }
+
   if (step === 1) {
     return (
-      <Modal title="新增 Provider · 选择类型" onClose={props.onClose}>
+      <Modal title="新增模型服务" onClose={props.onClose}>
         <div className="grid grid-cols-2 gap-2">
           {PROVIDER_TEMPLATES.map((t) => (
             <button
@@ -123,7 +133,7 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
               className="rounded-lg border border-cj-border bg-white px-3 py-3 text-left shadow-sm hover:border-cj-accent"
             >
               <div className="text-sm font-medium text-slate-900">{t.label}</div>
-              <div className="text-xs text-cj-dim">{t.kind}</div>
+              <div className="text-xs text-cj-dim">{providerKindLabel(t.kind)}</div>
             </button>
           ))}
           <button
@@ -131,7 +141,7 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
             className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-3 text-left hover:border-cj-accent"
           >
             <div className="text-sm font-medium text-cj-accent">自定义</div>
-            <div className="text-xs text-cj-dim">OpenAI 兼容端点</div>
+            <div className="text-xs text-cj-dim">自定义 OpenAI 兼容端点</div>
           </button>
         </div>
       </Modal>
@@ -140,7 +150,7 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
 
   return (
     <>
-      <Modal title={isEdit ? `编辑 ${props.editing!.label}` : "新增 Provider · 配置"} onClose={props.onClose}>
+      <Modal title={isEdit ? `编辑 ${props.editing!.label}` : "配置模型服务"} onClose={props.onClose}>
         <div className="space-y-3">
           <Field label="名称">
             <input
@@ -151,25 +161,30 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
             />
           </Field>
 
-          <Field label="Provider 类型">
+          <Field label="服务类型">
             <select
               value={draft.kind}
-              onChange={(e) => setDraft({ ...draft, kind: e.target.value as ProviderKind })}
+              onChange={(e) => {
+                const kind = e.target.value as ProviderKind;
+                setDraft({ ...draft, kind });
+              }}
               className="input"
             >
-              <option value="openai">openai</option>
-              <option value="openai-compat">openai-compat (DeepSeek/Qwen/Moonshot/...)</option>
-              <option value="anthropic">anthropic</option>
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="openai-compat">OpenAI 兼容</option>
+              <option value="anthropic-compat">Anthropic 兼容</option>
             </select>
           </Field>
 
           {draft.kind !== "anthropic" ? (
-            <Field label={draft.kind === "openai-compat" ? "Base URL(必填)" : "Base URL(可选)"}>
+            <Field label={draft.kind === "openai" || draft.kind === "deepseek" ? "Base URL（可选）" : "Base URL（必填）"}>
               <input
                 value={draft.baseURL}
                 onChange={(e) => setDraft({ ...draft, baseURL: e.target.value })}
                 className="input"
-                placeholder="https://api.deepseek.com/v1"
+                placeholder={draft.kind === "deepseek" ? "https://api.deepseek.com" : "https://api.example.com"}
               />
             </Field>
           ) : null}
@@ -204,9 +219,26 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
             <div className="mb-1 text-xs uppercase tracking-wider text-cj-dim">
               已选模型 ({draft.models.length})
             </div>
+            <div className="mb-2 flex gap-2">
+              <input
+                value={manualModel}
+                onChange={(e) => setManualModel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addManualModel();
+                  }
+                }}
+                className="input"
+                placeholder="手动添加模型 ID，如 deepseek-v4-pro"
+              />
+              <button onClick={addManualModel} className="btn-ghost shrink-0">
+                添加
+              </button>
+            </div>
             {draft.models.length === 0 ? (
               <div className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-3 text-sm text-cj-dim">
-                还没有模型。点上方「测试并获取模型」拉取并勾选。
+                还没有模型。可以测试后勾选，也可以像 Chatbox 一样手动添加模型 ID。
               </div>
             ) : (
               <div className="flex flex-wrap gap-1">
@@ -272,4 +304,23 @@ export function ProviderWizard(props: { editing?: Provider; onClose: () => void 
       ) : null}
     </>
   );
+}
+
+function providerKindLabel(kind: ProviderKind): string {
+  switch (kind) {
+    case "openai":
+      return "OpenAI";
+    case "deepseek":
+      return "DeepSeek";
+    case "anthropic":
+      return "Anthropic";
+    case "openai-compat":
+      return "OpenAI 兼容";
+    case "anthropic-compat":
+      return "Anthropic 兼容";
+    default: {
+      const _exhaustive: never = kind;
+      return String(_exhaustive);
+    }
+  }
 }

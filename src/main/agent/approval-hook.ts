@@ -110,7 +110,6 @@ export function createApprovalMiddleware(opts: {
       const decision = await broker.request(req);
 
       if (decision === "deny") {
-        broker.rememberAgent(agentId, toolName, fingerprint, "deny");
         return new ToolMessage({
           content: "Operation denied by user.",
           tool_call_id: request.toolCall.id ?? nanoid(8),

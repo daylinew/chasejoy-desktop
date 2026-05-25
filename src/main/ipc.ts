@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from "electron";
+import { dialog, ipcMain, type BrowserWindow } from "electron";
 
 import {
   Channels,
@@ -83,7 +83,7 @@ export function registerIpc(win: BrowserWindow): () => void {
 
     /* Chat */
     chatStream: (input: never) => {
-      const i = input as unknown as { threadId: string; content: string };
+      const i = input as unknown as Parameters<ApiSurface["chatStream"]>[0];
       const requestId = `${i.threadId}-${Date.now()}`;
       void bridge.run(i).catch((err) => {
         emitStream({
@@ -148,6 +148,32 @@ export function registerIpc(win: BrowserWindow): () => void {
     settingsSetTavilyKey: (key: never) => {
       settingsStore.setTavilyKey(key as never);
     },
+
+    /* Native dialogs */
+    dialogPickDirectory: async () => {
+      const result = await dialog.showOpenDialog(win, {
+        title: "Choose workspace folder",
+        properties: ["openDirectory", "createDirectory"],
+      });
+      if (result.canceled) return null;
+      return result.filePaths[0] ?? null;
+    },
+    dialogPickFile: async () => {
+      const result = await dialog.showOpenDialog(win, {
+        title: "Choose target file",
+        properties: ["openFile"],
+      });
+      if (result.canceled) return null;
+      return result.filePaths[0] ?? null;
+    },
+    dialogPickFiles: async () => {
+      const result = await dialog.showOpenDialog(win, {
+        title: "Attach files",
+        properties: ["openFile", "multiSelections"],
+      });
+      if (result.canceled) return [];
+      return result.filePaths;
+    },
   };
 
   type ChannelKey = keyof typeof Channels;
@@ -181,6 +207,9 @@ export function registerIpc(win: BrowserWindow): () => void {
     settingsSetDefaultProvider: Channels.settingsSetDefaultProvider,
     settingsFetchModels: Channels.settingsFetchModels,
     settingsSetTavilyKey: Channels.settingsSetTavilyKey,
+    dialogPickDirectory: Channels.dialogPickDirectory,
+    dialogPickFile: Channels.dialogPickFile,
+    dialogPickFiles: Channels.dialogPickFiles,
   };
 
   const registered: string[] = [];

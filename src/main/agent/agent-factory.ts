@@ -3,6 +3,7 @@ import type { DeepAgent } from "deepagents";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 import type { AgentRow } from "@shared/domain.js";
 import { createChatModel } from "./model-factory.js";
@@ -23,6 +24,14 @@ import { fileEditorSubagent } from "./subagents/file-editor.js";
 import { getSettingsStore } from "../stores/settings-store.js";
 
 const NATIVE_MEMORY_PATH = "/memories/AGENTS.md";
+const runContextSchema = z.object({
+  workspaceDir: z.string().optional(),
+  attachments: z.array(z.object({
+    kind: z.enum(["file", "folder"]),
+    path: z.string(),
+    name: z.string(),
+  })).optional(),
+});
 
 export interface AgentRuntimeBundle {
   agent: DeepAgent;
@@ -109,6 +118,7 @@ export function buildAgent(opts: {
     middleware: [alignment, approval] as never,
     subagents: subagents as never,
     memory: [NATIVE_MEMORY_PATH],
+    contextSchema: runContextSchema,
     checkpointer,
   });
 

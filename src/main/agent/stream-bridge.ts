@@ -1,15 +1,13 @@
 import {
   AIMessage,
-  type AIMessageChunk,
   type BaseMessage,
   HumanMessage,
   ToolMessage,
 } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { createGraphRunStream } from "@langchain/langgraph";
 import { nanoid } from "nanoid";
 
-import type { AgentRow, MessageRow, RunToolEvent, StreamEvent, SubagentStreamInterface } from "@shared/domain.js";
+import type { AgentRow, AgentRunContext, MessageRow, RunToolEvent, StreamEvent, SubagentStreamInterface } from "@shared/domain.js";
 import { AgentRegistry } from "./agent-registry.js";
 import { MessageRepository } from "../db/repositories/messages.js";
 import { ThreadRepository } from "../db/repositories/threads.js";
@@ -30,10 +28,10 @@ interface RunContext {
   fallbackAssistantText: string;
 }
 
-class AIMessageStub extends AIMessage {
-  constructor(content: string) {
-    super({ content });
-  }
+interface PersistedMessageMeta {
+  additional_kwargs?: Record<string, unknown>;
+  response_metadata?: Record<string, unknown>;
+  id?: string;
 }
 
 class ToolMessageStub extends ToolMessage {
@@ -62,12 +60,13 @@ export class StreamBridge {
     this.active.get(threadId)?.abortController.abort();
   }
 
-  async run(input: { threadId: string; content: string }): Promise<void> {
+  async run(input: { threadId: string; content: string; context?: AgentRunContext }): Promise<void> {
     const thread = this.threadRepo.requireById(input.threadId);
     const agentRow = this.registry.agentForThread(thread.id);
     const bundle = this.registry.getRuntime(agentRow.id);
     bundle.setActiveThread(thread.id);
     const modelContent = expandShortContinuation(input.content);
+    const previousAssistantText = this.messageRepo.latestAssistantContent(thread.id);
 
     this.messageRepo.append(thread.id, "user", input.content);
     this.threadRepo.touch(thread.id);
@@ -97,45 +96,36 @@ export class StreamBridge {
     const assistantMessageId = nanoid(14);
 
     const subagentsList: SubagentStreamInterface[] = [];
+    let latestStateMessages: BaseMessage[] = [];
 
-    try {
-      const rawStream = await (bundle.agent as unknown as {
-        stream: (
+    const consumeStream = async (messagesForRun: BaseMessage[]) => {
+      const run = await (bundle.agent as unknown as {
+        streamEvents: (
           input: { messages: BaseMessage[] },
           opts: {
-            subgraphs: boolean;
-            streamMode: string[];
+            version: "v3";
             signal: AbortSignal;
+            context?: AgentRunContext;
             configurable: { thread_id: string };
             metadata: { assistantId: string };
           },
         ) => any;
-      }).stream(
-        { messages },
+      }).streamEvents(
+        { messages: messagesForRun },
         {
           ...checkpointConfig,
-          subgraphs: true,
-          streamMode: ["values", "updates", "messages", "tools"],
+          context: input.context,
+          version: "v3",
           signal: ctx.abortController.signal,
         },
       );
 
-      const run = createGraphRunStream(
-        rawStream as any,
-        (bundle.agent.graph as any).streamTransformers,
-        { abortController: ctx.abortController }
-      );
-
       const valuesLoop = async () => {
         for await (const values of run.values) {
-          this.handleUpdates(
-            ctx,
-            { values },
-            assistantMessageId,
-            (text) => {
-              assistantBuffer += text;
-            },
-          );
+          if (values && typeof values === "object" && Array.isArray((values as Record<string, unknown>)["messages"])) {
+            latestStateMessages = (values as Record<string, unknown>)["messages"] as BaseMessage[];
+          }
+          this.handleUpdates(ctx, { values });
         }
       };
 
@@ -170,9 +160,29 @@ export class StreamBridge {
         }
       };
 
+      const toolCallsLoop = async () => {
+        const resultWaits: Promise<void>[] = [];
+        for await (const call of run.toolCalls ?? []) {
+          this.recordToolCall(ctx, {
+            id: call.callId,
+            name: call.name,
+            args: call.input,
+          });
+          const resultWait = Promise.resolve(call.output)
+            .then((output) => {
+              this.recordToolResult(ctx, call.callId, stringifyToolOutput(output));
+            })
+            .catch((err) => {
+              this.recordToolResult(ctx, call.callId, (err as Error).message ?? String(err));
+            });
+          resultWaits.push(resultWait);
+        }
+        await Promise.allSettled(resultWaits);
+      };
+
       const subagentsLoop = async () => {
         for await (const subagent of (run as any).subagents) {
-          const subagentId = subagent.id;
+          const subagentId = subagent.id ?? `${subagent.name ?? "subagent"}-${subagentsList.length + 1}`;
           const initial: SubagentStreamInterface = {
             id: subagentId,
             status: "pending",
@@ -262,7 +272,15 @@ export class StreamBridge {
         }
       };
 
-      await Promise.all([valuesLoop(), messagesLoop(), subagentsLoop()]);
+      await Promise.all([valuesLoop(), messagesLoop(), toolCallsLoop(), subagentsLoop()]);
+
+      if (assistantBuffer.length === 0) {
+        ctx.fallbackAssistantText = extractAssistantAfterUserContent(latestStateMessages, modelContent, input.content);
+      }
+    };
+
+    try {
+      await consumeStream(messages);
     } catch (err) {
       const e = err as Error;
       this.emit({
@@ -275,8 +293,19 @@ export class StreamBridge {
       this.active.delete(thread.id);
     }
 
-    if (assistantBuffer.length === 0 && ctx.fallbackAssistantText) {
-      assistantBuffer = ctx.fallbackAssistantText;
+    const usingFallbackText = assistantBuffer.length === 0 && Boolean(ctx.fallbackAssistantText);
+    if (usingFallbackText) assistantBuffer = ctx.fallbackAssistantText;
+
+    if (
+      assistantBuffer.trim() &&
+      previousAssistantText &&
+      assistantBuffer.trim() === previousAssistantText.trim() &&
+      ctx.runToolEvents.length === 0
+    ) {
+      assistantBuffer = "";
+    }
+
+    if (usingFallbackText && assistantBuffer.length > 0) {
       this.emit({
         type: "message_delta",
         agentId: agentRow.id,
@@ -289,7 +318,15 @@ export class StreamBridge {
 
     if (assistantBuffer.length > 0) {
       const finalText = assistantBuffer;
-      const final = this.messageRepo.append(thread.id, "assistant", assistantBuffer, ctx.runToolEvents, subagentsList);
+      const finalMessage = findAssistantAfterUserMessage(latestStateMessages, modelContent, input.content);
+      const final = this.messageRepo.append(
+        thread.id,
+        "assistant",
+        assistantBuffer,
+        ctx.runToolEvents,
+        subagentsList,
+        finalMessage ? messageMetaFromBaseMessage(finalMessage) : undefined,
+      );
       this.emit({
         type: "message_complete",
         agentId: agentRow.id,
@@ -327,8 +364,15 @@ export class StreamBridge {
       switch (r.role) {
         case "user":
           return new HumanMessage(content);
-        case "assistant":
-          return new AIMessageStub(content);
+        case "assistant": {
+          const meta = parseMessageMeta(r.messageMeta);
+          return new AIMessage({
+            content,
+            id: meta?.id,
+            additional_kwargs: meta?.additional_kwargs ?? {},
+            response_metadata: meta?.response_metadata ?? {},
+          });
+        }
         case "tool":
           return new ToolMessageStub(content, r.id);
         case "system":
@@ -338,21 +382,10 @@ export class StreamBridge {
     });
   }
 
-  private handleUpdates(
-    ctx: RunContext,
-    chunk: Record<string, unknown>,
-    assistantMessageId: string,
-    bufferAppend: (s: string) => void,
-  ): void {
+  private handleUpdates(ctx: RunContext, chunk: Record<string, unknown>): void {
     for (const [, value] of Object.entries(chunk)) {
       if (!value || typeof value !== "object") continue;
       const v = value as Record<string, unknown>;
-
-      if (Array.isArray(v["messages"])) {
-        for (const m of v["messages"] as BaseMessage[]) {
-          this.processMessage(ctx, m, assistantMessageId, bufferAppend);
-        }
-      }
 
       if (Array.isArray(v["todos"])) {
         this.emit({
@@ -379,29 +412,6 @@ export class StreamBridge {
           files: flat,
         });
       }
-    }
-  }
-
-  private processMessage(
-    ctx: RunContext,
-    m: BaseMessage,
-    assistantMessageId: string,
-    bufferAppend: (s: string) => void,
-  ): void {
-    const typeName = (m as { _getType?: () => string })._getType?.() ?? m.constructor.name;
-
-    if (typeName === "ai" || typeName === "AIMessage" || typeName === "AIMessageChunk") {
-      const ai = m as AIMessage | AIMessageChunk;
-      const text = typeof ai.content === "string" ? ai.content : flattenContent(ai.content);
-      if (text) ctx.fallbackAssistantText = text;
-      const toolCalls = (ai as { tool_calls?: { id?: string; name?: string; args?: unknown }[] }).tool_calls ?? [];
-      for (const call of toolCalls) {
-        this.recordToolCall(ctx, call);
-      }
-    } else if (typeName === "tool" || typeName === "ToolMessage") {
-      const tm = m as ToolMessage;
-      const content = typeof tm.content === "string" ? tm.content : flattenContent(tm.content);
-      this.recordToolResult(ctx, tm.tool_call_id ?? nanoid(8), content);
     }
   }
 
@@ -493,11 +503,97 @@ function flattenContent(content: unknown): string {
   return "";
 }
 
+function messageType(m: BaseMessage): string {
+  return (m as { _getType?: () => string })._getType?.() ?? m.constructor.name;
+}
+
+function messageContent(m: BaseMessage): string {
+  return typeof m.content === "string" ? m.content : flattenContent(m.content);
+}
+
+function extractAssistantAfterUserContent(
+  messages: BaseMessage[],
+  modelContent: string,
+  displayContent: string,
+): string {
+  const message = findAssistantAfterUserMessage(messages, modelContent, displayContent);
+  return message ? messageContent(message).trim() : "";
+}
+
+function findAssistantAfterUserMessage(
+  messages: BaseMessage[],
+  modelContent: string,
+  displayContent: string,
+): BaseMessage | null {
+  const userCandidates = new Set([modelContent.trim(), displayContent.trim()].filter(Boolean));
+  let latestUserIndex = -1;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    const typeName = messageType(m);
+    if (typeName !== "human" && typeName !== "HumanMessage") continue;
+    const text = messageContent(m).trim();
+    if (userCandidates.has(text)) {
+      latestUserIndex = i;
+      break;
+    }
+  }
+
+  if (latestUserIndex < 0) return null;
+
+  for (let i = latestUserIndex + 1; i < messages.length; i++) {
+    const m = messages[i]!;
+    const typeName = messageType(m);
+    if (typeName === "ai" || typeName === "AIMessage" || typeName === "AIMessageChunk") {
+      const text = messageContent(m).trim();
+      if (text) return m;
+    }
+  }
+  return null;
+}
+
+function messageMetaFromBaseMessage(message: BaseMessage): PersistedMessageMeta | undefined {
+  const raw = message as BaseMessage & {
+    additional_kwargs?: Record<string, unknown>;
+    response_metadata?: Record<string, unknown>;
+    id?: string;
+  };
+  const meta: PersistedMessageMeta = {};
+  if (raw.id) meta.id = raw.id;
+  if (raw.additional_kwargs && Object.keys(raw.additional_kwargs).length > 0) {
+    meta.additional_kwargs = raw.additional_kwargs;
+  }
+  if (raw.response_metadata && Object.keys(raw.response_metadata).length > 0) {
+    meta.response_metadata = raw.response_metadata;
+  }
+  return Object.keys(meta).length > 0 ? meta : undefined;
+}
+
+function parseMessageMeta(raw: string | null | undefined): PersistedMessageMeta | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as PersistedMessageMeta;
+    return parsed && typeof parsed === "object" ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function safeJson(v: unknown): string {
   try {
     return JSON.stringify(v ?? {});
   } catch {
     return "{}";
+  }
+}
+
+function stringifyToolOutput(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v == null) return "";
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
   }
 }
 

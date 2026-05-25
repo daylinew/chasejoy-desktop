@@ -115,4 +115,11 @@ ALTER TABLE messages ADD COLUMN subagents TEXT;
 `,
 };
 
-export const migrations: Migration[] = [m0001, m0002, m0003, m0004];
+const m0005: Migration = {
+  name: "0005_add_message_meta",
+  sql: `
+ALTER TABLE messages ADD COLUMN message_meta TEXT;
+`,
+};
+
+export const migrations: Migration[] = [m0001, m0002, m0003, m0004, m0005];

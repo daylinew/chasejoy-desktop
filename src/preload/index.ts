@@ -49,6 +49,11 @@ const api: ApiSurface = {
   settingsSetDefaultProvider: (id) => rpc(Channels.settingsSetDefaultProvider, id),
   settingsFetchModels: (draft) => rpc(Channels.settingsFetchModels, draft),
   settingsSetTavilyKey: (key) => rpc(Channels.settingsSetTavilyKey, key),
+
+  /* Native dialogs */
+  dialogPickDirectory: () => rpc(Channels.dialogPickDirectory),
+  dialogPickFile: () => rpc(Channels.dialogPickFile),
+  dialogPickFiles: () => rpc(Channels.dialogPickFiles),
 };
 
 const on = {

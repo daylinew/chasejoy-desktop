@@ -49,6 +49,7 @@ function store(): Store<PersistedShape> {
       defaults: DEFAULTS,
     });
     migrateLegacyProfiles(_store);
+    normalizeDeepSeekProviders(_store);
   }
   return _store;
 }
@@ -133,6 +134,29 @@ function migrateLegacyProfiles(s: Store<PersistedShape>): void {
 
   raw.delete("profiles");
   raw.delete("defaultProfileId");
+}
+
+function normalizeDeepSeekProviders(s: Store<PersistedShape>): void {
+  const providers = s.get("providers");
+  let changed = false;
+  const next = providers.map((p) => {
+    const haystack = `${p.label} ${p.baseURL ?? ""} ${p.models.join(" ")}`.toLowerCase();
+    if (!haystack.includes("deepseek")) return p;
+    const base = p.baseURL?.toLowerCase().replace(/\/+$/, "");
+    const isOldDeepSeekBase =
+      base === "https://api.deepseek.com/v1" ||
+      base === "https://api.deepseek.com/anthropic";
+    if (p.kind === "deepseek" && !isOldDeepSeekBase) {
+      return p;
+    }
+    changed = true;
+    return {
+      ...p,
+      kind: "deepseek" as ProviderKind,
+      baseURL: "https://api.deepseek.com",
+    };
+  });
+  if (changed) s.set("providers", next);
 }
 
 export class SettingsStore {
@@ -284,7 +308,7 @@ export function getSettingsStore(): SettingsStore {
 export const PROVIDER_TEMPLATES: { label: string; kind: ProviderKind; baseURL?: string }[] = [
   { label: "OpenAI", kind: "openai" },
   { label: "Anthropic", kind: "anthropic" },
-  { label: "DeepSeek", kind: "openai-compat", baseURL: "https://api.deepseek.com/v1" },
+  { label: "DeepSeek", kind: "deepseek", baseURL: "https://api.deepseek.com" },
   { label: "Qwen (DashScope)", kind: "openai-compat", baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
   { label: "Moonshot Kimi", kind: "openai-compat", baseURL: "https://api.moonshot.cn/v1" },
 ];

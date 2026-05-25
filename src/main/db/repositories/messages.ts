@@ -11,6 +11,7 @@ interface MessageDbRow {
   content: string;
   tool_calls: string | null;
   subagents: string | null;
+  message_meta: string | null;
   created_at: number;
 }
 
@@ -22,6 +23,7 @@ function fromRow(r: MessageDbRow): MessageRow {
     content: r.content,
     toolCalls: r.tool_calls,
     subagents: r.subagents,
+    messageMeta: r.message_meta,
     createdAt: r.created_at,
   };
 }
@@ -35,20 +37,25 @@ export class MessageRepository {
     content: string,
     toolCalls?: unknown,
     subagents?: unknown,
+    messageMeta?: unknown,
   ): MessageRow {
     const id = nanoid(14);
     const now = Date.now();
+    const toolCallsJson = toolCalls ? JSON.stringify(toolCalls) : null;
+    const subagentsJson = subagents ? JSON.stringify(subagents) : null;
+    const messageMetaJson = messageMeta ? JSON.stringify(messageMeta) : null;
     this.db
       .prepare(
-        "INSERT INTO messages (id, thread_id, role, content, tool_calls, subagents, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO messages (id, thread_id, role, content, tool_calls, subagents, message_meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         id,
         threadId,
         role,
         content,
-        toolCalls ? JSON.stringify(toolCalls) : null,
-        subagents ? JSON.stringify(subagents) : null,
+        toolCallsJson,
+        subagentsJson,
+        messageMetaJson,
         now,
       );
     return {
@@ -56,8 +63,9 @@ export class MessageRepository {
       threadId,
       role,
       content,
-      toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
-      subagents: subagents ? JSON.stringify(subagents) : null,
+      toolCalls: toolCallsJson,
+      subagents: subagentsJson,
+      messageMeta: messageMetaJson,
       createdAt: now,
     };
   }
@@ -75,5 +83,12 @@ export class MessageRepository {
       .prepare("SELECT COUNT(*) as c FROM messages WHERE thread_id=?")
       .get(threadId) as { c: number };
     return row.c;
+  }
+
+  latestAssistantContent(threadId: string): string | null {
+    const row = this.db
+      .prepare("SELECT content FROM messages WHERE thread_id=? AND role='assistant' ORDER BY created_at DESC LIMIT 1")
+      .get(threadId) as { content: string } | undefined;
+    return row?.content ?? null;
   }
 }

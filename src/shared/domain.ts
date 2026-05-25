@@ -4,14 +4,14 @@
  * so it can be imported from both sides safely.
  */
 
-export type ProviderKind = "openai" | "openai-compat" | "anthropic";
+export type ProviderKind = "openai" | "deepseek" | "openai-compat" | "anthropic" | "anthropic-compat";
 
 export interface Provider {
   id: string;
   /** Friendly label such as "OpenAI", "DeepSeek" */
   label: string;
   kind: ProviderKind;
-  /** Optional override; for openai-compat this is required. */
+  /** Optional override; required for compatibility providers. */
   baseURL?: string;
   /** Set on read only when the renderer needs it; otherwise omitted. */
   apiKey?: string;
@@ -94,7 +94,20 @@ export interface MessageRow {
   toolCalls?: string | null;
   /** JSON-encoded array of subagent state snapshots. */
   subagents?: string | null;
+  /** JSON-encoded provider/runtime metadata needed to faithfully rebuild model history. */
+  messageMeta?: string | null;
   createdAt: number;
+}
+
+export interface RunContextAttachment {
+  kind: "file" | "folder";
+  path: string;
+  name: string;
+}
+
+export interface AgentRunContext {
+  workspaceDir?: string;
+  attachments?: RunContextAttachment[];
 }
 
 export interface RunToolEvent {

@@ -10,6 +10,7 @@
 
 import type {
   AgentRow,
+  AgentRunContext,
   AlignmentEvent,
   AppMeta,
   ApprovalDecision,
@@ -61,6 +62,10 @@ export const Channels = {
   settingsFetchModels: "settings:fetchModels",
   settingsSetTavilyKey: "settings:setTavilyKey",
 
+  dialogPickDirectory: "dialog:pickDirectory",
+  dialogPickFile: "dialog:pickFile",
+  dialogPickFiles: "dialog:pickFiles",
+
   /* Renderer-bound events */
   evtStream: "evt:stream",
   evtApproval: "evt:approval",
@@ -84,7 +89,7 @@ export interface ApiSurface {
   threadMessages(threadId: string, limit?: number): Promise<MessageRow[]>;
 
   /* Chat */
-  chatStream(input: { threadId: string; content: string }): Promise<{ requestId: string }>;
+  chatStream(input: { threadId: string; content: string; context?: AgentRunContext }): Promise<{ requestId: string }>;
   chatCancel(threadId: string): Promise<void>;
 
   /* Milestones */
@@ -122,6 +127,11 @@ export interface ApiSurface {
     providerId?: string;
   }): Promise<string[]>;
   settingsSetTavilyKey(key: string | null): Promise<void>;
+
+  /* Native dialogs */
+  dialogPickDirectory(): Promise<string | null>;
+  dialogPickFile(): Promise<string | null>;
+  dialogPickFiles(): Promise<string[]>;
 }
 
 export interface ListenerSurface {

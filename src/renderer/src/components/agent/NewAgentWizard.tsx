@@ -16,6 +16,7 @@ export function NewAgentWizard() {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [goal, setGoal] = useState("");
+  const [workspaceDir, setWorkspaceDir] = useState("");
   const [providerId, setProviderId] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -62,6 +63,7 @@ export function NewAgentWizard() {
         goalPrompt: goal.trim(),
         providerId,
         model,
+        workspaceDir: workspaceDir.trim() || undefined,
       };
       await window.chasejoy.api.agentCreate(input);
       await refreshAgents();
@@ -71,6 +73,11 @@ export function NewAgentWizard() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function chooseWorkspace() {
+    const selected = await window.chasejoy.api.dialogPickDirectory();
+    if (selected) setWorkspaceDir(selected);
   }
 
   return (
@@ -104,6 +111,23 @@ export function NewAgentWizard() {
           />
           <div className="mt-1 text-xs text-cj-dim">
             Be specific. The agent re-reads this every turn — clarity here directly reduces drift.
+          </div>
+        </Field>
+
+        <Field label="Workspace folder">
+          <div className="flex gap-2">
+            <input
+              value={workspaceDir}
+              onChange={(e) => setWorkspaceDir(e.target.value)}
+              placeholder="Default: ChaseJoy app workspace"
+              className="input min-w-0 flex-1"
+            />
+            <button type="button" onClick={() => void chooseWorkspace()} className="btn-ghost shrink-0">
+              Choose
+            </button>
+          </div>
+          <div className="mt-1 text-xs text-cj-dim">
+            The agent's file tools read, write, search, and run commands inside this folder.
           </div>
         </Field>
 

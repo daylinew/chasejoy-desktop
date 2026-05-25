@@ -41,13 +41,13 @@ export function SettingsView() {
   }
 
   return (
-    <Modal title="Settings" onClose={() => setOpen(false)} widthClass="max-w-3xl">
+    <Modal title="设置" onClose={() => setOpen(false)} widthClass="max-w-3xl">
       <div className="space-y-6">
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-slate-900">Project anchor defaults</h3>
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">工作区默认值</h3>
           {meta ? (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Alignment self-check every N tool calls">
+              <Field label="目标校准检查间隔">
                 <input
                   type="number"
                   min={1}
@@ -56,7 +56,7 @@ export function SettingsView() {
                   onChange={(e) => void saveMeta({ alignmentSelfCheckEveryN: parseInt(e.target.value || "4", 10) })}
                 />
               </Field>
-              <Field label="Workspace root">
+              <Field label="默认工作区根目录">
                 <input className="input" value={meta.workspaceRoot} readOnly />
               </Field>
             </div>
@@ -67,7 +67,7 @@ export function SettingsView() {
 
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Providers</h3>
+            <h3 className="text-sm font-semibold text-slate-900">模型服务</h3>
             <button onClick={() => setWizard({})} className="btn-primary">
               + 新增
             </button>
@@ -75,7 +75,7 @@ export function SettingsView() {
 
           {providers.length === 0 ? (
             <div className="rounded-lg border border-dashed border-cj-border bg-cj-panel2 px-3 py-4 text-sm text-cj-dim">
-              还没有 provider。新增一个并获取模型,即可开始聊天。
+              还没有模型服务。新增一个并选择模型后，就可以开始使用。
             </div>
           ) : (
             <ul className="space-y-2">
@@ -88,7 +88,7 @@ export function SettingsView() {
                     <div className="text-sm font-medium text-slate-900">
                       {p.label}
                       <span className="ml-2 chip">{p.kind}</span>
-                      {p.isDefault ? <span className="ml-2 chip text-cj-accent">default</span> : null}
+                      {p.isDefault ? <span className="ml-2 chip text-cj-accent">默认</span> : null}
                       {p.hasApiKey ? (
                         <span className="ml-2 chip text-cj-accent">已保存 key</span>
                       ) : (
@@ -137,11 +137,11 @@ export function SettingsView() {
             </button>
           </div>
           <div className="mt-1 text-xs text-cj-dim">
-            Used by the `internet_search` tool. Get one free at{" "}
+            用于 `internet_search` 工具。可以在{" "}
             <a href="https://tavily.com" className="text-cj-accent" target="_blank" rel="noreferrer">
               tavily.com
             </a>
-            .
+            获取。
           </div>
         </section>
 

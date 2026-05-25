@@ -1,7 +1,8 @@
 import { createMiddleware } from "langchain";
 import type { BaseMessage } from "@langchain/core/messages";
+import path from "node:path";
 
-import type { AgentRow } from "@shared/domain.js";
+import type { AgentRow, AgentRunContext } from "@shared/domain.js";
 import { MilestoneRepository } from "../../db/repositories/milestones.js";
 
 /**
@@ -29,11 +30,14 @@ export function createAlignmentMiddleware(opts: {
         const active = milestones.filter((m) => m.status === "active" || m.status === "todo");
         const done = milestones.filter((m) => m.status === "done");
         void latestUserText;
+        const runContext = normalizeRunContext(request.runtime?.context);
 
         const anchor = renderAnchor({
           agentName: agent.name,
           role: agent.role,
           goalPrompt: agent.goalPrompt,
+          workspaceDir: agent.workspaceDir,
+          runContext,
           activeMilestones: active.map((m) => `- [${m.status}] ${m.title}${m.description ? ` — ${m.description}` : ""}`),
           doneMilestones: done.map((m) => `- [done] ${m.title}`),
         });
@@ -72,6 +76,8 @@ function renderAnchor(args: {
   agentName: string;
   role: string | null;
   goalPrompt: string;
+  workspaceDir: string;
+  runContext: AgentRunContext | null;
   activeMilestones: string[];
   doneMilestones: string[];
 }): string {
@@ -87,6 +93,11 @@ function renderAnchor(args: {
     "## Your project goal",
     args.goalPrompt,
     "",
+    "## Workspace",
+    `Work inside this workspace unless the user explicitly changes it: ${args.workspaceDir}`,
+    "Use relative paths from this workspace when reading, writing, editing, searching, or executing commands.",
+    renderRunContext(args.runContext, args.workspaceDir),
+    "",
     "## Milestones",
     milestonesBlock,
     "",
@@ -96,4 +107,52 @@ function renderAnchor(args: {
     "3. Maintain durable facts/preferences/decisions/artifacts in `/memories/AGENTS.md` with `read_file` and `edit_file`. Be selective — only what helps future you.",
     "4. Prefer concise, direct answers; expand only when the user asks or the task warrants it.",
   ].join("\n");
+}
+
+function normalizeRunContext(value: unknown): AgentRunContext | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as AgentRunContext;
+  const workspaceDir = typeof raw.workspaceDir === "string" && raw.workspaceDir.trim()
+    ? raw.workspaceDir.trim()
+    : undefined;
+  const attachments = Array.isArray(raw.attachments)
+    ? raw.attachments
+        .filter((a) => a && typeof a.path === "string" && typeof a.name === "string")
+        .slice(0, 12)
+        .map((a) => ({
+          kind: a.kind === "folder" ? "folder" as const : "file" as const,
+          path: a.path,
+          name: a.name,
+        }))
+    : [];
+  if (!workspaceDir && attachments.length === 0) return null;
+  return { workspaceDir, attachments };
+}
+
+function renderRunContext(context: AgentRunContext | null, fallbackWorkspaceDir: string): string {
+  if (!context) return "";
+  const workspaceDir = context.workspaceDir || fallbackWorkspaceDir;
+  const attachments = context.attachments ?? [];
+  const lines = [
+    "",
+    "## Current run context",
+    `Selected work directory: ${workspaceDir}`,
+  ];
+
+  if (attachments.length > 0) {
+    lines.push("Attached files selected by the user:");
+    for (const file of attachments) {
+      const virtualPath = virtualPathFor(file.path, workspaceDir);
+      lines.push(`- ${file.name}: ${virtualPath ? `read as \`${virtualPath}\`` : file.path}`);
+    }
+    lines.push("Use attached files as task context when relevant. Read them before editing if the request depends on their contents.");
+  }
+
+  return lines.join("\n");
+}
+
+function virtualPathFor(filePath: string, workspaceDir: string): string | null {
+  const relative = path.relative(workspaceDir, filePath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  return `/${relative.replace(/\\/g, "/")}`;
 }

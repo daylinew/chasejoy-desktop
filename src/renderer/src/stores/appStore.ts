@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type {
   AgentRow,
+  AgentRunContext,
   AlignmentEvent,
   ApprovalRequest,
   MessageRow,
@@ -68,7 +69,7 @@ export interface AppState {
   selectThread: (id: string) => Promise<void>;
   createThread: () => Promise<void>;
   deleteThread: (id: string) => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, opts?: AgentRunContext) => Promise<void>;
   cancelStream: () => Promise<void>;
   refreshMilestones: () => Promise<void>;
   realign: () => Promise<void>;
@@ -170,6 +171,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   async createThread() {
     const agentId = get().activeAgentId;
     if (!agentId) return;
+    set({ composerBusy: false, streamingBubble: null });
     const t = await api().threadCreate(agentId);
     set({ threads: [t, ...get().threads] });
     await get().selectThread(t.id);
@@ -178,7 +180,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   async deleteThread(id) {
     await api().threadDelete(id);
     const remaining = get().threads.filter((t) => t.id !== id);
-    set({ threads: remaining });
+    set({ threads: remaining, composerBusy: false, streamingBubble: null });
     if (get().activeThreadId !== id) return;
     if (remaining.length > 0) {
       await get().selectThread(remaining[0]!.id);
@@ -191,16 +193,29 @@ export const useAppStore = create<AppState>((set, get) => ({
         files: {},
         toolEvents: [],
         alignment: null,
+        composerBusy: false,
       });
     }
   },
 
-  async sendMessage(text) {
+  async sendMessage(text, opts) {
     const trimmed = text.trim();
     if (!trimmed) return;
+    const agentId = get().activeAgentId;
+    const activeAgent = get().agents.find((a) => a.id === agentId) ?? null;
+    const workspaceDir = opts?.workspaceDir?.trim() || activeAgent?.workspaceDir;
+    const context: AgentRunContext = {
+      workspaceDir,
+      attachments: opts?.attachments?.slice(0, 12) ?? [],
+    };
+
+    if (workspaceDir && activeAgent && workspaceDir !== activeAgent.workspaceDir) {
+      await api().agentUpdate(activeAgent.id, { workspaceDir });
+      await get().refreshAgents();
+    }
+
     let threadId = get().activeThreadId;
     if (!threadId) {
-      const agentId = get().activeAgentId;
       if (!agentId) return;
       const t = await api().threadCreate(agentId, trimmed.slice(0, 40));
       threadId = t.id;
@@ -225,7 +240,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
 
     try {
-      await api().chatStream({ threadId, content: trimmed });
+      await api().chatStream({ threadId, content: trimmed, context });
     } catch (err) {
       console.error(err);
       set({ composerBusy: false, streamingBubble: null });
@@ -235,6 +250,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   async cancelStream() {
     const tid = get().activeThreadId;
     if (!tid) return;
+    set({ composerBusy: false, streamingBubble: null });
     try {
       await api().chatCancel(tid);
     } catch (err) {
@@ -385,11 +401,47 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       case "error":
         console.error("[Agent error]", evt.message);
-        set({ composerBusy: false, streamingBubble: null });
+        set({
+          composerBusy: false,
+          streamingBubble: null,
+          messages: [
+            ...get().messages,
+            {
+              id: `err-${Date.now()}`,
+              threadId: evt.threadId,
+              role: "assistant",
+              content: `运行出错：${evt.message}`,
+              createdAt: Date.now(),
+            },
+          ],
+        });
         break;
-      case "done":
-        set({ composerBusy: false, streamingBubble: null });
+      case "done": {
+        const bubble = get().streamingBubble;
+        if (bubble?.streaming) {
+          const hasVisibleWork =
+            bubble.content.trim().length > 0 ||
+            (bubble.toolEvents?.length ?? 0) > 0 ||
+            (bubble.subagents?.length ?? 0) > 0;
+          const fallbackMessage: MessageRow = {
+            id: bubble.id,
+            threadId: evt.threadId,
+            role: "assistant",
+            content: hasVisibleWork ? bubble.content : "未收到模型输出。",
+            toolCalls: bubble.toolEvents ? JSON.stringify(bubble.toolEvents) : null,
+            subagents: bubble.subagents ? JSON.stringify(bubble.subagents) : null,
+            createdAt: Date.now(),
+          };
+          set({
+            composerBusy: false,
+            streamingBubble: null,
+            messages: [...get().messages, fallbackMessage],
+          });
+        } else {
+          set({ composerBusy: false, streamingBubble: null });
+        }
         break;
+      }
     }
   },
 

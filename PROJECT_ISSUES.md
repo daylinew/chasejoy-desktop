@@ -116,6 +116,15 @@ For each issue, keep the record short and actionable:
 - Decision: DeepSeek is now its own `deepseek` provider kind using official LangChain `ChatDeepSeek`, defaulting to `https://api.deepseek.com`. Existing DeepSeek configs are migrated away from old OpenAI/Anthropic compatibility routes.
 - Follow-up: Keep provider adapters aligned with official LangChain integrations first; provider-specific transforms require an explicit issue and verification note.
 
+### CJ-012 Runs Stopped After Progress Text
+
+- Status: mitigated
+- Area: runtime/context
+- Symptom: Long artifact tasks could stop after text like "正在生成" or "接下来处理", with no visible file or command action.
+- Cause: The model sometimes produced work-in-progress narration as a final assistant turn, and long histories could approach context limits without an explicit compression path.
+- Decision: Use DeepAgents summarization defaults based on model context size where available, with fallback thresholds for unknown compatible models. Add a bounded internal continuation when a run has artifact intent, progress-like text, and no concrete tool-backed action.
+- Follow-up: Verify with real long document/webpage tasks and tune continuation heuristics if it over-continues on explanatory questions.
+
 ## Open Follow-Ups
 
 - Make run summary cards actionable: open artifact, diff viewer, per-file review, undo/revert.
@@ -125,3 +134,4 @@ For each issue, keep the record short and actionable:
 - Design MCP server registry, permissions, and tool bridge.
 - Define ACP support scope.
 - Add smoke tests for create agent -> send message -> checkpoint resume -> memory read/write -> artifact open.
+- Add smoke tests for long artifact runs that trigger summarization and auto-continuation.

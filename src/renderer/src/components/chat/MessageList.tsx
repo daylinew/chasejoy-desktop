@@ -17,7 +17,7 @@ interface Props {
 
 export function MessageList({ messages, streamingBubble }: Props) {
   return (
-    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-7">
+    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-7">
       {messages.map((m) => {
         const subagentsList: SubagentStreamInterface[] = m.subagents
           ? JSON.parse(m.subagents)
@@ -71,9 +71,9 @@ function Bubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[92%] text-[15px] leading-7 ${
+        className={`max-w-[min(92%,760px)] text-[15px] leading-7 ${
           isUser
-            ? "rounded-2xl bg-zinc-100 px-4 py-2.5 text-slate-800"
+            ? "rounded-[18px] bg-zinc-100 px-4 py-2.5 text-slate-800 shadow-sm ring-1 ring-zinc-200/60"
             : "px-1 py-1 text-slate-900"
         }`}
       >
@@ -113,12 +113,25 @@ function ExecutionActivity({
   const latestTools = toolEvents.slice(-8).reverse();
   const runningSubagents = subagents.filter((s) => s.status === "running" || s.status === "pending");
   const hasDetails = activeTodo || latestTools.length > 0 || runningSubagents.length > 0 || fileCount > 0;
+  const statusLabel = latestTools[0]?.toolName ? describeTool(latestTools[0].toolName) : activeTodo ? "Planning" : "Thinking";
 
   return (
-    <div className="mb-4 w-full max-w-2xl rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-      <div className="space-y-2 text-sm text-slate-700">
+    <div className="mb-4 w-full max-w-2xl overflow-hidden rounded-2xl border border-zinc-200 bg-white/95 shadow-sm ring-1 ring-white">
+      <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/70 px-4 py-2.5">
+        <div className="flex items-center gap-2 text-xs font-medium text-zinc-600">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          {statusLabel}
+        </div>
+        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-zinc-400 ring-1 ring-zinc-200">
+          live
+        </span>
+      </div>
+      <div className="space-y-2 px-4 py-3 text-sm text-slate-700">
         {!hasDetails ? (
-          <ExecutionRow pulse label="正在分析请求" />
+          <ExecutionRow pulse label="Thinking through the next step" />
         ) : null}
         {visibleTodos.map((todo, index) => (
           <ExecutionRow
@@ -126,7 +139,7 @@ function ExecutionActivity({
             done={todo.status === "completed"}
             pulse={todo.status === "in_progress"}
             muted={todo.status === "pending"}
-            label={todo.content}
+            label={todo.status === "in_progress" ? `Planning: ${todo.content}` : todo.content}
           />
         ))}
         {runningSubagents.map((s) => (
@@ -134,7 +147,7 @@ function ExecutionActivity({
             key={s.id}
             pulse={s.status === "running"}
             muted={s.status === "pending"}
-            label={`委派 ${s.toolCall?.args?.subagent_type ?? "子任务"}`}
+            label={`Delegating to ${s.toolCall?.args?.subagent_type ?? "subagent"}`}
             detail={s.toolCall?.args?.description}
           />
         ))}
@@ -169,10 +182,20 @@ function ExecutionRow({
   return (
     <div className={`flex items-start gap-3 ${muted ? "text-zinc-400" : "text-slate-700"}`}>
       <span
-        className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${
-          done ? "bg-cj-ok" : pulse ? "animate-pulse bg-cj-accent" : "bg-slate-300"
+        className={`mt-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${
+          done
+            ? "border-emerald-200 bg-emerald-50"
+            : pulse
+              ? "border-blue-200 bg-blue-50"
+              : "border-zinc-200 bg-zinc-50"
         }`}
-      />
+      >
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            done ? "bg-emerald-500" : pulse ? "animate-pulse bg-blue-500" : "bg-zinc-300"
+          }`}
+        />
+      </span>
       <div className="min-w-0 flex-1">
         <div className="truncate" title={label}>{label}</div>
         {detail ? (
@@ -202,8 +225,8 @@ function RunSummary({ toolEvents }: { toolEvents: RunToolEvent[] }) {
   if (changedFiles.length === 0 && commands.length === 0) return null;
 
   return (
-    <div className="mb-4 max-w-2xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
+    <div className="mb-4 max-w-2xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/60 px-4 py-3">
         <div className="text-sm font-medium text-slate-900">
           {changedFiles.length > 0 ? `已编辑 ${changedFiles.length} 个文件` : "已执行命令"}
         </div>
@@ -235,28 +258,28 @@ function RunSummary({ toolEvents }: { toolEvents: RunToolEvent[] }) {
 function describeTool(toolName: string): string {
   switch (toolName) {
     case "read_file":
-      return "读取文件";
+      return "Reading";
     case "write_file":
-      return "创建文件";
+      return "Writing";
     case "edit_file":
-      return "编辑文件";
+      return "Editing";
     case "execute":
-      return "运行命令";
+      return "Running";
     case "grep":
-      return "搜索代码";
+      return "Searching";
     case "glob":
     case "ls":
-      return "扫描文件";
+      return "Scanning";
     case "internet_search":
-      return "搜索网页";
+      return "Researching";
     case "add_milestone":
     case "update_milestone":
     case "list_milestones":
-      return "更新计划";
+      return "Planning";
     case "open_path":
-      return "打开文件";
+      return "Opening";
     default:
-      return toolName ? `调用 ${toolName}` : "执行中";
+      return toolName ? `Using ${toolName}` : "Working";
   }
 }
 

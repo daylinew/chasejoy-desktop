@@ -34,11 +34,6 @@ export function Composer({ disabled }: { disabled?: boolean }) {
     await sendMessage(next, context);
   }
 
-  async function chooseWorkspace() {
-    const selected = await window.chasejoy.api.dialogPickDirectory();
-    if (selected) setWorkspaceDir(selected);
-  }
-
   async function attachFiles() {
     const selected = await window.chasejoy.api.dialogPickFiles();
     if (selected.length === 0) return;
@@ -62,22 +57,10 @@ export function Composer({ disabled }: { disabled?: boolean }) {
 
   return (
     <div
-      className={`mx-auto w-full rounded-2xl border border-zinc-200 bg-white shadow-[0_12px_34px_rgba(15,23,42,0.08)] transition-all ${
-        busy ? "max-w-[620px]" : "max-w-[780px]"
-      }`}
+      className="mx-auto w-full max-w-[780px] rounded-2xl border border-zinc-200 bg-white/95 shadow-[0_18px_55px_rgba(15,23,42,0.10)] ring-1 ring-white backdrop-blur"
     >
-      {!busy && (workspaceDir || attachments.length > 0) ? (
+      {!busy && attachments.length > 0 ? (
         <div className="mx-3 mt-3 flex flex-wrap items-center gap-2 text-xs">
-          {workspaceDir ? (
-            <button
-              type="button"
-              onClick={() => void chooseWorkspace()}
-              className="max-w-full truncate rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-zinc-600 hover:bg-white hover:text-slate-900"
-              title={workspaceDir}
-            >
-              工作目录 · {shortPath(workspaceDir)}
-            </button>
-          ) : null}
           {attachments.map((item) => (
             <span
               key={item.path}
@@ -108,35 +91,24 @@ export function Composer({ disabled }: { disabled?: boolean }) {
           }
         }}
         placeholder={disabled ? "Select an agent first..." : "Ask ChaseJoy to do something..."}
-        rows={busy ? 1 : 3}
+        rows={3}
         disabled={disabled}
-        className={`w-full resize-none rounded-t-2xl border-0 bg-transparent px-5 text-[15px] text-slate-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0 ${
-          busy ? "min-h-[44px] py-3" : "min-h-[86px] py-4"
-        }`}
+        className="min-h-[86px] w-full resize-none rounded-t-2xl border-0 bg-transparent px-5 py-4 text-[15px] text-slate-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0"
       />
 
-      <div className="flex h-12 items-center justify-between border-t border-zinc-100 px-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-h-12 items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/45 px-3 py-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => void attachFiles()}
             disabled={disabled || busy}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-xl text-zinc-400 hover:bg-zinc-50 hover:text-slate-800 disabled:opacity-40"
-            title="Attach files"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-xl text-zinc-400 hover:bg-white hover:text-slate-800 disabled:opacity-40"
+            title="添加上下文"
           >
             +
           </button>
-          <button
-            type="button"
-            onClick={() => void chooseWorkspace()}
-            disabled={disabled || busy}
-            className="max-w-[170px] truncate rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-slate-800 disabled:opacity-40"
-            title={workspaceDir || "Choose work directory"}
-          >
-            {workspaceDir ? shortPath(workspaceDir) : "选择工作目录"}
-          </button>
           <ModelSelector />
-          <span className="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50">默认权限</span>
+          <span className="rounded-lg px-2 py-1 text-xs text-zinc-500 max-[520px]:hidden">默认权限</span>
         </div>
 
         {busy ? (
@@ -162,13 +134,6 @@ export function Composer({ disabled }: { disabled?: boolean }) {
       </div>
     </div>
   );
-}
-
-function shortPath(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length <= 2) return path;
-  return `${parts.at(-2)}/${parts.at(-1)}`;
 }
 
 function basename(path: string): string {

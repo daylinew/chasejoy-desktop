@@ -22,14 +22,14 @@ export function ProjectNavBar() {
 
   if (!agent) {
     return (
-      <div className="flex h-12 items-center border-b border-zinc-200 bg-[#fbfbfa] px-5 text-sm text-zinc-500">
+      <div className="flex h-12 items-center border-b border-zinc-200/80 bg-[#fbfbfa] px-5 text-sm text-zinc-500 max-[760px]:pl-14">
         Select or create an agent to begin.
       </div>
     );
   }
 
   return (
-    <div className="flex h-12 items-center justify-between gap-4 border-b border-zinc-200 bg-[#fbfbfa] px-4">
+    <div className="flex h-12 items-center justify-between gap-4 border-b border-zinc-200/80 bg-[#fbfbfa]/95 px-4 max-[760px]:pl-14">
       <div className="flex min-w-0 items-center gap-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-slate-950">{activeThread?.title || agent.name}</div>

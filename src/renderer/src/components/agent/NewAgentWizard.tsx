@@ -114,7 +114,7 @@ export function NewAgentWizard() {
           </div>
         </Field>
 
-        <Field label="Workspace folder">
+        <Field label="Workspace folder (optional)">
           <div className="flex gap-2">
             <input
               value={workspaceDir}
@@ -127,7 +127,7 @@ export function NewAgentWizard() {
             </button>
           </div>
           <div className="mt-1 text-xs text-cj-dim">
-            The agent's file tools read, write, search, and run commands inside this folder.
+            Leave this empty to use ChaseJoy's default workspace. You can add files later from the composer.
           </div>
         </Field>
 

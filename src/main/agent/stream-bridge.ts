@@ -34,6 +34,15 @@ interface PersistedMessageMeta {
   id?: string;
 }
 
+const MAX_AUTO_CONTINUE_RUNS = 2;
+const CONCRETE_TOOL_NAMES = new Set([
+  "write_file",
+  "edit_file",
+  "execute",
+  "clipboard_write",
+  "take_screenshot",
+]);
+
 class ToolMessageStub extends ToolMessage {
   constructor(content: string, id: string) {
     super({ content, tool_call_id: id });
@@ -99,6 +108,7 @@ export class StreamBridge {
     let latestStateMessages: BaseMessage[] = [];
 
     const consumeStream = async (messagesForRun: BaseMessage[]) => {
+      ctx.fallbackAssistantText = "";
       const run = await (bundle.agent as unknown as {
         streamEvents: (
           input: { messages: BaseMessage[] },
@@ -279,19 +289,68 @@ export class StreamBridge {
       }
     };
 
+    let streamFailed = false;
     try {
       await consumeStream(messages);
     } catch (err) {
       const e = err as Error;
+      streamFailed = true;
       this.emit({
         type: "error",
         agentId: agentRow.id,
         threadId: thread.id,
         message: e.message ?? String(e),
       });
-    } finally {
-      this.active.delete(thread.id);
     }
+
+    if (!streamFailed && assistantBuffer.length === 0 && ctx.fallbackAssistantText) {
+      assistantBuffer = ctx.fallbackAssistantText;
+      this.emit({
+        type: "message_delta",
+        agentId: agentRow.id,
+        threadId: thread.id,
+        messageId: assistantMessageId,
+        role: "assistant",
+        deltaContent: assistantBuffer,
+      });
+    }
+
+    for (
+      let attempt = 0;
+      !streamFailed
+        && !ctx.abortController.signal.aborted
+        && attempt < MAX_AUTO_CONTINUE_RUNS
+        && shouldAutoContinueRun(input.content, assistantBuffer, ctx.runToolEvents);
+      attempt += 1
+    ) {
+      const autoPrompt = buildAutoContinuePrompt(input.content, assistantBuffer, ctx.runToolEvents);
+      const spacer = assistantBuffer.endsWith("\n\n") ? "" : "\n\n";
+      if (spacer) {
+        assistantBuffer += spacer;
+        this.emit({
+          type: "message_delta",
+          agentId: agentRow.id,
+          threadId: thread.id,
+          messageId: assistantMessageId,
+          role: "assistant",
+          deltaContent: spacer,
+        });
+      }
+      try {
+        await consumeStream([new HumanMessage(autoPrompt)]);
+      } catch (err) {
+        const e = err as Error;
+        streamFailed = true;
+        this.emit({
+          type: "error",
+          agentId: agentRow.id,
+          threadId: thread.id,
+          message: e.message ?? String(e),
+        });
+      }
+    }
+
+    this.active.delete(thread.id);
 
     const usingFallbackText = assistantBuffer.length === 0 && Boolean(ctx.fallbackAssistantText);
     if (usingFallbackText) assistantBuffer = ctx.fallbackAssistantText;
@@ -318,7 +377,9 @@ export class StreamBridge {
 
     if (assistantBuffer.length > 0) {
       const finalText = assistantBuffer;
-      const finalMessage = findAssistantAfterUserMessage(latestStateMessages, modelContent, input.content);
+      const finalMessage =
+        findLatestAssistantMessage(latestStateMessages) ??
+        findAssistantAfterUserMessage(latestStateMessages, modelContent, input.content);
       const final = this.messageRepo.append(
         thread.id,
         "assistant",
@@ -520,6 +581,16 @@ function extractAssistantAfterUserContent(
   return message ? messageContent(message).trim() : "";
 }
 
+function findLatestAssistantMessage(messages: BaseMessage[]): BaseMessage | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    const typeName = messageType(m);
+    if (typeName !== "ai" && typeName !== "AIMessage" && typeName !== "AIMessageChunk") continue;
+    if (messageContent(m).trim()) return m;
+  }
+  return null;
+}
+
 function findAssistantAfterUserMessage(
   messages: BaseMessage[],
   modelContent: string,
@@ -600,6 +671,52 @@ function stringifyToolOutput(v: unknown): string {
 function truncate(s: string, n: number): string {
   if (!s) return "";
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+function shouldAutoContinueRun(
+  userContent: string,
+  assistantText: string,
+  toolEvents: RunToolEvent[],
+): boolean {
+  const text = assistantText.trim();
+  if (!text) return false;
+  if (toolEvents.some((event) => CONCRETE_TOOL_NAMES.has(event.toolName))) return false;
+  if (/\b(done|completed|finished|created|updated|saved|written)\b/i.test(text)) return false;
+  if (/已完成|已经完成|已生成|已创建|已保存|写好了|完成了/.test(text)) return false;
+
+  const artifactIntent =
+    /生成|创建|制作|编写|修改|写|报告|表格|xlsx|excel|html|网页|文件|代码|测试|打开|create|write|generate|build|make|edit|modify|report|spreadsheet|file|page|app|test/i
+      .test(userContent);
+  if (!artifactIntent) return false;
+
+  return /正在|准备|将会|接下来|下一步|开始|继续|生成中|处理中|我会|我将|需要|thinking|working|preparing|generating|processing|next step|i'?ll|i will|i'm going/i
+    .test(text);
+}
+
+function buildAutoContinuePrompt(
+  userContent: string,
+  assistantText: string,
+  toolEvents: RunToolEvent[],
+): string {
+  const recentTools = toolEvents.length > 0
+    ? toolEvents.slice(-6).map((event) => `- ${event.toolName}: ${truncate(event.argsJson, 200)}`).join("\n")
+    : "- No concrete tool-backed work has happened yet.";
+  return [
+    "Continue executing the user's request now.",
+    "",
+    "Your previous response looked like work-in-progress. Do not restate the plan.",
+    "Use the available tools to inspect, create, edit, run, or verify the actual artifact.",
+    "If the user requested a report, document, webpage, spreadsheet, code change, or test, produce the real file/work before summarizing.",
+    "",
+    "Original user request:",
+    truncate(userContent, 1200),
+    "",
+    "Previous assistant response:",
+    truncate(assistantText, 1200),
+    "",
+    "Recent tool activity:",
+    recentTools,
+  ].join("\n");
 }
 
 function expandShortContinuation(content: string): string {

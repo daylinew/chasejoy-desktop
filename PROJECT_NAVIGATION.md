@@ -1,6 +1,6 @@
 # ChaseJoy Desktop Project Navigation
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 ## North Star
 
@@ -33,7 +33,9 @@ The default interaction should feel closer to Codex/opencode than to a dashboard
 
 - Main surface: conversation plus inline execution cards.
 - Left sidebar: agents and conversations.
+- The window must adapt to smaller widths: the sidebar can collapse into an overlay, while the chat and composer keep usable responsive widths.
 - No default right-side technical state panel.
+- Do not make agent setup or workspace/file selection a required first step. A default Base Agent should be usable immediately; users add files or switch workspace only when the task needs it.
 - During a run, the assistant message shows visible work: `Working`, `Reading`, `Editing`, `Running`, `Delegating`, `Waiting for approval`.
 - After a run, the assistant message should keep a summary card: edited files, commands/checks, review/open artifact actions.
 - Approvals should be focused choices: deny, allow once, allow this chat, always allow.
@@ -61,8 +63,8 @@ ChaseJoy should follow DeepAgents/LangChain context engineering instead of build
 
 User-facing concepts:
 
-- Work directory: where the agent can inspect, edit, run, and create artifacts.
-- Attached files: explicit short-term context for the current task.
+- Work directory: implicit execution scope for file tools, not a required user action before chatting.
+- Attached files: optional short-term context for the current task.
 - Skills: reusable methods and domain workflows loaded on demand.
 - Memory: durable facts, preferences, project conventions, and important artifact references.
 - Run history: visible execution trace and result summary, not raw internal state.
@@ -73,7 +75,7 @@ Internal mapping:
 - Runtime context: current agent, conversation, workspace, selected files, provider/model, permissions, integration identities, and protocol connections.
 - Short-term state: LangGraph checkpoint per conversation.
 - Long-term memory: DeepAgents filesystem-backed memory under `/memories/`, routed through SDK backends where cross-thread persistence is needed.
-- Context compression: prefer DeepAgents built-in offloading and summarization instead of manually trimming messages.
+- Context compression: use DeepAgents summarization/offloading middleware instead of manually trimming messages. Prefer SDK model-profile thresholds; only use product fallbacks when the model does not expose context size.
 - Context isolation: use DeepAgents subagents for heavy research, large file inspection, and focused edits so the main agent receives concise results.
 
 Rules:
@@ -122,6 +124,7 @@ Key files:
 - Custom product tools: Tavily search, clipboard, screenshot, app/path opening, goal steps.
 - Subagents currently include `researcher` and `file_editor`.
 - Context follows SDK structure: system prompt + memory + tools + subagents + LangGraph checkpoint.
+- Context compression is explicitly configured through DeepAgents `createSummarizationMiddleware`: use `computeSummarizationDefaults(model)` when the model exposes `maxInputTokens`, offload old history under `/conversation_history`, and keep an operational summary plus recent context. Unknown OpenAI-compatible models use conservative fallback thresholds.
 
 Key files:
 
@@ -137,6 +140,7 @@ Key files:
 - Assistant messages show live execution activity in the chat flow.
 - Assistant messages can persist run tool events for Codex-like summary cards.
 - Short continuation messages such as `继续` are expanded internally into explicit execution instructions.
+- If a run only produces progress-like text but no concrete file/command/screenshot action, the bridge can issue a bounded internal continuation so the agent keeps executing instead of stopping at "I will do it".
 
 Key files:
 
@@ -206,6 +210,7 @@ Key files:
 
 - `execute`, `write_file`, and `edit_file` are intercepted by custom middleware.
 - User can deny, allow once, allow for this chat, or always allow.
+- Approval UI is a lightweight confirmation sheet: show the human action summary first, keep raw tool arguments collapsed under technical details.
 - Approval policies persist in SQLite.
 
 Key files:
@@ -242,6 +247,7 @@ Key files:
 - MCP server management and tool/resource bridge are not implemented.
 - ACP support is not implemented.
 - More end-to-end runtime smoke tests are needed with real providers.
+- DeepSeek V4 thinking mode + tool calling is blocked by an open upstream fix. `@langchain/openai`'s outbound converter drops `reasoning_content` when turning `AIMessage` back into chat completions request payloads, so DeepSeek's multi-turn tool loop 400s with *"The reasoning_content in the thinking mode must be passed back to the API."* Track [PR #10889](https://github.com/langchain-ai/langchainjs/pull/10889) (has changeset + tests, closer to merge) and the parallel [PR #10891](https://github.com/langchain-ai/langchainjs/pull/10891). Until one ships, DeepSeek agents in ChaseJoy keep thinking disabled via `modelKwargs: { thinking: { type: "disabled" } }` in `model-factory.ts`, which sacrifices multi-step execution quality. After upgrading `@langchain/openai` past the merged version, remove the disable workaround and let thinking run. A local workaround (openclaw-style fetch wrapper that strips/ensures `reasoning_content` in the outgoing payload) is intentionally not implemented to avoid maintaining patch code parallel to the upstream fix.
 
 ## Next Steps
 

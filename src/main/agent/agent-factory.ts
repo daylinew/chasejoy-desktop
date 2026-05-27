@@ -1,4 +1,11 @@
-import { createDeepAgent, FilesystemBackend } from "deepagents";
+import {
+  computeSummarizationDefaults,
+  createDeepAgent,
+  createHarnessProfile,
+  createSummarizationMiddleware,
+  FilesystemBackend,
+  registerHarnessProfile,
+} from "deepagents";
 import type { DeepAgent } from "deepagents";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import fs from "node:fs";
@@ -103,6 +110,50 @@ export function buildAgent(opts: {
     threadIdRef: threadRef,
     broker: approvalBroker,
   });
+  const modelMaxInputTokens = getModelMaxInputTokens(model);
+  const compressionDefaults = computeSummarizationDefaults(model);
+  const summarization = createSummarizationMiddleware({
+    model,
+    backend,
+    trigger: modelMaxInputTokens
+      ? compressionDefaults.trigger
+      : [
+          { type: "messages" as const, value: 28 },
+          { type: "tokens" as const, value: 24000 },
+        ],
+    keep: modelMaxInputTokens
+      ? compressionDefaults.keep
+      : { type: "messages" as const, value: 10 },
+    trimTokensToSummarize: modelMaxInputTokens
+      ? Math.min(16000, Math.max(4000, Math.floor(modelMaxInputTokens * 0.2)))
+      : 12000,
+    historyPathPrefix: "/conversation_history",
+    truncateArgsSettings: modelMaxInputTokens
+      ? compressionDefaults.truncateArgsSettings
+      : {
+          trigger: { type: "messages" as const, value: 18 },
+          keep: { type: "messages" as const, value: 8 },
+          maxLength: 1800,
+          truncationText: "...(older tool argument truncated; re-read the file or conversation history if exact content is needed)",
+        },
+    summaryPrompt: [
+      "Summarize the conversation history below so the agent can continue the same task without losing critical state.",
+      "",
+      "Preserve:",
+      "- Current user objective and any explicit constraints",
+      "- Files created, edited, inspected, and their paths",
+      "- Commands run and important results/errors",
+      "- Decisions, assumptions, and remaining next steps",
+      "- Any pending approval or user instruction that still matters",
+      "",
+      "Keep it concise but operational. Do not include irrelevant chit-chat.",
+      "",
+      "<conversation>",
+      "{conversation}",
+      "</conversation>",
+    ].join("\n"),
+  });
+  registerContextCompressionProfile(model, summarization);
 
   const subagents: import("deepagents").SubAgent[] = [];
   if (enabled.has("internet_search")) {
@@ -157,4 +208,27 @@ function ensureNativeMemoryFile(workspaceDir: string): void {
   ];
 
   fs.writeFileSync(memoryFile, `${lines.join("\n")}\n`, "utf8");
+}
+
+function getModelMaxInputTokens(model: BaseChatModel): number | undefined {
+  const profile = (model as unknown as { profile?: { maxInputTokens?: unknown } }).profile;
+  return typeof profile?.maxInputTokens === "number" ? profile.maxInputTokens : undefined;
+}
+
+function registerContextCompressionProfile(model: BaseChatModel, summarization: unknown): void {
+  const provider = typeof (model as { _llmType?: () => string })._llmType === "function"
+    ? (model as { _llmType: () => string })._llmType()
+    : "";
+  const modelId = typeof (model as unknown as { model?: unknown }).model === "string"
+    ? (model as unknown as { model: string }).model
+    : "";
+  if (!provider || !modelId || modelId.includes(":")) return;
+
+  registerHarnessProfile(
+    `${provider}:${modelId}`,
+    createHarnessProfile({
+      excludedMiddleware: ["SummarizationMiddleware"],
+      extraMiddleware: [summarization] as never,
+    }),
+  );
 }
